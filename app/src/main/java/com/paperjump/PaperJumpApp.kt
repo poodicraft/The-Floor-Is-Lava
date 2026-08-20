@@ -1,4 +1,4 @@
-package com.lava.floorislava
+package com.paperjump
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -6,9 +6,9 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.lava.floorislava.capture.CameraScreen
-import com.lava.floorislava.game.GameView
-import com.lava.floorislava.ui.LevelTuneScreen
+import com.paperjump.capture.CameraScreen
+import com.paperjump.game.GameView
+import com.paperjump.ui.LevelTuneScreen
 
 /** The three screens of the app. */
 object Routes {
@@ -26,7 +26,7 @@ object Routes {
  * re-run the detector.
  */
 @Composable
-fun SketchPlatformerApp(
+fun PaperJumpApp(
     viewModel: SketchGameViewModel,
     navController: NavHostController = rememberNavController(),
 ) {

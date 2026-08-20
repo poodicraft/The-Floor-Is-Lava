@@ -1,8 +1,11 @@
-# The Floor Is Lava — Sketch Platformer
+# Paper Jump
 
 Draw a level on paper, photograph it, play it. An Android app in Kotlin, Jetpack Compose
 and CameraX that turns a hand-drawn sketch into a real 2D platformer: dark lines become
 solid ground, red becomes lava, and the little blue guy has to reach the blue flag.
+
+> Lives in the `The-Floor-Is-Lava` repository for historical reasons — it is a new,
+> unrelated game, not a version of the GPS game that repository started as.
 
 ## What the detector reads
 
@@ -81,7 +84,7 @@ CameraScreen ──photo──> SketchGameViewModel ──> ImageProcessor ─�
 
 ### 4. Shell
 
-`MainActivity.kt` (single activity) → `SketchPlatformerApp.kt` (Navigation Compose:
+`MainActivity.kt` (single activity) → `PaperJumpApp.kt` (Navigation Compose:
 capture → tune → game) → `SketchGameViewModel.kt`, which owns the bitmap and the level so
 they survive rotation and navigation.
 

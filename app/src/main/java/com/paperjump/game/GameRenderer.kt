@@ -1,4 +1,4 @@
-package com.lava.floorislava.game
+package com.paperjump.game
 
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -9,18 +9,18 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
-import com.lava.floorislava.processing.LevelData
-import com.lava.floorislava.processing.LevelRect
-import com.lava.floorislava.ui.theme.CoinGold
-import com.lava.floorislava.ui.theme.InkBlack
-import com.lava.floorislava.ui.theme.InkSoft
-import com.lava.floorislava.ui.theme.LavaEmber
-import com.lava.floorislava.ui.theme.LavaOrange
-import com.lava.floorislava.ui.theme.LavaRed
-import com.lava.floorislava.ui.theme.PaperCream
-import com.lava.floorislava.ui.theme.PaperShade
-import com.lava.floorislava.ui.theme.SkyBlue
-import com.lava.floorislava.ui.theme.SpringGreen
+import com.paperjump.processing.LevelData
+import com.paperjump.processing.LevelRect
+import com.paperjump.ui.theme.CoinGold
+import com.paperjump.ui.theme.InkBlack
+import com.paperjump.ui.theme.InkSoft
+import com.paperjump.ui.theme.LavaEmber
+import com.paperjump.ui.theme.LavaOrange
+import com.paperjump.ui.theme.LavaRed
+import com.paperjump.ui.theme.PaperCream
+import com.paperjump.ui.theme.PaperShade
+import com.paperjump.ui.theme.SkyBlue
+import com.paperjump.ui.theme.SpringGreen
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.cos

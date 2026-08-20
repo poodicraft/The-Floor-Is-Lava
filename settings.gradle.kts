@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "The Floor Is Lava"
+rootProject.name = "Paper Jump"
 include(":app")

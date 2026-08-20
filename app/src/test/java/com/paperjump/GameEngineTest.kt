@@ -1,11 +1,11 @@
-package com.lava.floorislava
+package com.paperjump
 
-import com.lava.floorislava.game.GameEngine
-import com.lava.floorislava.game.GameStatus
-import com.lava.floorislava.processing.Coin
-import com.lava.floorislava.processing.LevelData
-import com.lava.floorislava.processing.LevelRect
-import com.lava.floorislava.processing.Vec2
+import com.paperjump.game.GameEngine
+import com.paperjump.game.GameStatus
+import com.paperjump.processing.Coin
+import com.paperjump.processing.LevelData
+import com.paperjump.processing.LevelRect
+import com.paperjump.processing.Vec2
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

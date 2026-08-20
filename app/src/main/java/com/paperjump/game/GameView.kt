@@ -1,4 +1,4 @@
-package com.lava.floorislava.game
+package com.paperjump.game
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -65,11 +65,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.lava.floorislava.processing.LevelData
-import com.lava.floorislava.ui.theme.CoinGold
-import com.lava.floorislava.ui.theme.InkBlack
-import com.lava.floorislava.ui.theme.LavaOrange
-import com.lava.floorislava.ui.theme.SpringGreen
+import com.paperjump.processing.LevelData
+import com.paperjump.ui.theme.CoinGold
+import com.paperjump.ui.theme.InkBlack
+import com.paperjump.ui.theme.LavaOrange
+import com.paperjump.ui.theme.SpringGreen
 import java.util.Locale
 import kotlin.math.min
 
@@ -398,7 +398,7 @@ private fun ResultOverlay(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                text = if (won) "Level complete!" else "The floor was lava",
+                text = if (won) "Level complete!" else "Burnt to a crisp",
                 style = MaterialTheme.typography.headlineSmall,
                 color = if (won) SpringGreen else LavaOrange,
                 textAlign = TextAlign.Center,
@@ -407,7 +407,7 @@ private fun ResultOverlay(
                 text = if (won) {
                     "Coins ${hud.coins}/${hud.totalCoins}  ·  ${hud.timeLabel}  ·  attempt ${hud.attempts}"
                 } else {
-                    "You touched lava or fell off the page."
+                    "You hit the lava — or fell clean off the page."
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -1,4 +1,4 @@
-package com.lava.floorislava.capture
+package com.paperjump.capture
 
 import android.Manifest
 import android.content.Context
@@ -56,9 +56,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.lava.floorislava.processing.SampleSketch
-import com.lava.floorislava.ui.SketchLegend
-import com.lava.floorislava.ui.theme.InkBlack
+import com.paperjump.processing.SampleSketch
+import com.paperjump.ui.SketchLegend
+import com.paperjump.ui.theme.InkBlack
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine

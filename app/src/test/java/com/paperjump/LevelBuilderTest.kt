@@ -1,8 +1,8 @@
-package com.lava.floorislava
+package com.paperjump
 
-import com.lava.floorislava.processing.CellType
-import com.lava.floorislava.processing.LevelBuilder
-import com.lava.floorislava.processing.ProcessingConfig
+import com.paperjump.processing.CellType
+import com.paperjump.processing.LevelBuilder
+import com.paperjump.processing.ProcessingConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue

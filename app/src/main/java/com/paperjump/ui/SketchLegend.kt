@@ -1,4 +1,4 @@
-package com.lava.floorislava.ui
+package com.paperjump.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -18,11 +18,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.lava.floorislava.ui.theme.CoinGold
-import com.lava.floorislava.ui.theme.InkSoft
-import com.lava.floorislava.ui.theme.LavaRed
-import com.lava.floorislava.ui.theme.SkyBlue
-import com.lava.floorislava.ui.theme.SpringGreen
+import com.paperjump.ui.theme.CoinGold
+import com.paperjump.ui.theme.InkSoft
+import com.paperjump.ui.theme.LavaRed
+import com.paperjump.ui.theme.SkyBlue
+import com.paperjump.ui.theme.SpringGreen
 
 /** What each colour on the paper turns into. Shown on the capture and tuning screens. */
 private val LEGEND = listOf(

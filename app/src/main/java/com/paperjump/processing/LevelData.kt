@@ -1,4 +1,4 @@
-package com.lava.floorislava.processing
+package com.paperjump.processing
 
 /**
  * Level model produced by [LevelBuilder] and consumed by the game engine / renderer.

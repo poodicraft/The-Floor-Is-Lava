@@ -4,7 +4,7 @@
       Compose draws the whole UI, so the platform theme only has to avoid a white flash
       before the first frame and let the app go edge to edge.
     -->
-    <style name="Theme.FloorIsLava" parent="android:Theme.Material.NoActionBar">
+    <style name="Theme.PaperJump" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/ink_black</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>

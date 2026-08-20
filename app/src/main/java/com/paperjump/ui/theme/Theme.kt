@@ -1,4 +1,4 @@
-package com.lava.floorislava.ui.theme
+package com.paperjump.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -71,7 +71,7 @@ private val AppTypography = Typography(
 )
 
 @Composable
-fun SketchPlatformerTheme(
+fun PaperJumpTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {

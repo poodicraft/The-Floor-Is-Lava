@@ -1,4 +1,4 @@
-package com.lava.floorislava
+package com.paperjump
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
-import com.lava.floorislava.ui.theme.SketchPlatformerTheme
+import com.paperjump.ui.theme.PaperJumpTheme
 
 /**
  * Single-activity host. Everything else is Compose.
@@ -25,12 +25,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            SketchPlatformerTheme {
+            PaperJumpTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
-                    SketchPlatformerApp(viewModel = viewModel)
+                    PaperJumpApp(viewModel = viewModel)
                 }
             }
         }

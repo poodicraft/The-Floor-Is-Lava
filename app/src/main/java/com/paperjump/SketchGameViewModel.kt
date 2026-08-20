@@ -1,4 +1,4 @@
-package com.lava.floorislava
+package com.paperjump
 
 import android.graphics.Bitmap
 import androidx.compose.runtime.getValue
@@ -6,9 +6,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.lava.floorislava.processing.ImageProcessor
-import com.lava.floorislava.processing.LevelData
-import com.lava.floorislava.processing.ProcessingConfig
+import com.paperjump.processing.ImageProcessor
+import com.paperjump.processing.LevelData
+import com.paperjump.processing.ProcessingConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job

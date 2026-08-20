@@ -1,7 +1,7 @@
-package com.lava.floorislava.game
+package com.paperjump.game
 
-import com.lava.floorislava.processing.LevelData
-import com.lava.floorislava.processing.LevelRect
+import com.paperjump.processing.LevelData
+import com.paperjump.processing.LevelRect
 import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.max

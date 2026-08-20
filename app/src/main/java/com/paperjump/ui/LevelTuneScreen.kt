@@ -1,4 +1,4 @@
-package com.lava.floorislava.ui
+package com.paperjump.ui
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.Canvas
@@ -42,9 +42,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.lava.floorislava.game.GameRenderer
-import com.lava.floorislava.processing.LevelData
-import com.lava.floorislava.processing.ProcessingConfig
+import com.paperjump.game.GameRenderer
+import com.paperjump.processing.LevelData
+import com.paperjump.processing.ProcessingConfig
 import kotlin.math.roundToInt
 
 /**

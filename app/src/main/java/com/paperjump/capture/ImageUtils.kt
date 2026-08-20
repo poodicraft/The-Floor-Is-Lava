@@ -1,4 +1,4 @@
-package com.lava.floorislava.capture
+package com.paperjump.capture
 
 import android.content.Context
 import android.graphics.Bitmap
