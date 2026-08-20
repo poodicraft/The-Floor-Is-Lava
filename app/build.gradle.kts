@@ -17,10 +17,28 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Signing for the release build. The key comes from the environment so no private key
+    // is ever committed; without it, `assembleRelease` just produces an unsigned APK.
+    val keystorePath: String? = System.getenv("RELEASE_KEYSTORE")
+    signingConfigs {
+        if (keystorePath != null) {
+            create("release") {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+                keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            signingConfig = signingConfigs.findByName("release")
+            // R8 is off until the app has been through a device test with it on: a bad
+            // keep rule shows up as a crash at runtime, which CI here cannot catch.
+            // Turning it on is a one-line change (shrinkResources needs minify enabled).
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

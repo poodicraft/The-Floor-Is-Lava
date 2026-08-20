@@ -32,11 +32,56 @@ jobs:
       - name: Assemble debug APK
         run: ./gradlew assembleDebug --stacktrace
 
-      - name: Upload APK
+      - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
           name: paper-jump-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      # A release APK installs on devices that refuse debuggable ones. If the repo has a
+      # RELEASE_KEYSTORE_BASE64 secret it is used, so upgrades keep working; otherwise a
+      # throwaway key is minted here and every build is signed by a different key, which
+      # means the previous install has to be removed before the new APK will go on.
+      - name: Prepare a signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "Signing with the repository's stored key."
+          else
+            keytool -genkeypair -v \
+              -keystore "$RUNNER_TEMP/release.jks" \
+              -alias paperjump -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass throwaway -keypass throwaway \
+              -dname "CN=Paper Jump, O=Paper Jump"
+            echo "Signing with a throwaway key generated for this run."
+          fi
+
+      - name: Assemble release APK
+        env:
+          RELEASE_KEYSTORE: ${{ runner.temp }}/release.jks
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD || 'throwaway' }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS || 'paperjump' }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD || 'throwaway' }}
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Check the release APK is signed and not debuggable
+        run: |
+          APK=$(ls app/build/outputs/apk/release/*.apk)
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BUILD_TOOLS/apksigner" verify --print-certs "$APK"
+          "$BUILD_TOOLS/aapt2" dump badging "$APK" | grep -E "^(package|application-debuggable|sdkVersion|targetSdkVersion|native-code)" || true
+          if "$BUILD_TOOLS/aapt2" dump badging "$APK" | grep -q "application-debuggable"; then
+            echo "::error::release APK is debuggable"; exit 1
+          fi
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: paper-jump-release-apk
+          path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
 
       - name: Upload test report
