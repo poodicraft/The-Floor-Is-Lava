@@ -25,8 +25,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.KeyboardArrowLeft
-import androidx.compose.material.icons.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.ChevronLeft
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -39,6 +39,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -54,12 +55,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lava.floorislava.processing.LevelData
@@ -278,41 +281,45 @@ private fun TouchControls(
     onJump: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier
-            .padding(horizontal = 20.dp, vertical = 24.dp)
-            .alpha(if (enabled) 1f else 0.35f),
-        verticalAlignment = Alignment.Bottom,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            HoldButton(description = "Move left", enabled = enabled, onPressedChange = onLeft) {
-                Icon(
-                    Icons.Rounded.KeyboardArrowLeft,
-                    contentDescription = null,
-                    modifier = Modifier.size(40.dp),
-                )
-            }
-            HoldButton(description = "Move right", enabled = enabled, onPressedChange = onRight) {
-                Icon(
-                    Icons.Rounded.KeyboardArrowRight,
-                    contentDescription = null,
-                    modifier = Modifier.size(40.dp),
-                )
-            }
-        }
-        HoldButton(
-            description = "Jump",
-            enabled = enabled,
-            accent = LavaOrange,
-            diameter = 88.dp,
-            onPressedChange = onJump,
+    // Movement controls are physical, not textual: in an RTL locale the button that moves
+    // the player left must still sit on the left and point left.
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+        Row(
+            modifier = modifier
+                .padding(horizontal = 20.dp, vertical = 24.dp)
+                .alpha(if (enabled) 1f else 0.35f),
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Icon(
-                Icons.Rounded.KeyboardArrowUp,
-                contentDescription = null,
-                modifier = Modifier.size(44.dp),
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                HoldButton(description = "Move left", enabled = enabled, onPressedChange = onLeft) {
+                    Icon(
+                        Icons.Rounded.ChevronLeft,
+                        contentDescription = null,
+                        modifier = Modifier.size(40.dp),
+                    )
+                }
+                HoldButton(description = "Move right", enabled = enabled, onPressedChange = onRight) {
+                    Icon(
+                        Icons.Rounded.ChevronRight,
+                        contentDescription = null,
+                        modifier = Modifier.size(40.dp),
+                    )
+                }
+            }
+            HoldButton(
+                description = "Jump",
+                enabled = enabled,
+                accent = LavaOrange,
+                diameter = 88.dp,
+                onPressedChange = onJump,
+            ) {
+                Icon(
+                    Icons.Rounded.KeyboardArrowUp,
+                    contentDescription = null,
+                    modifier = Modifier.size(44.dp),
+                )
+            }
         }
     }
 }
