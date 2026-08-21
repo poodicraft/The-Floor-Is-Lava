@@ -24,13 +24,13 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Unit tests (detector + physics)
-        run: ./gradlew testDebugUnitTest --stacktrace
+        run: ./gradlew testDebugUnitTest
 
       - name: Lint
-        run: ./gradlew lintDebug --stacktrace
+        run: ./gradlew lintDebug
 
       - name: Assemble debug APK
-        run: ./gradlew assembleDebug --stacktrace
+        run: ./gradlew assembleDebug
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
@@ -65,7 +65,7 @@ jobs:
           RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD || 'throwaway' }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS || 'paperjump' }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD || 'throwaway' }}
-        run: ./gradlew assembleRelease --stacktrace
+        run: ./gradlew assembleRelease
 
       - name: Check the release APK is signed and not debuggable
         run: |

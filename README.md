@@ -1,11 +1,35 @@
 # Paper Jump
 
-Draw a level on paper, photograph it, play it. An Android app in Kotlin, Jetpack Compose
-and CameraX that turns a hand-drawn sketch into a real 2D platformer: dark lines become
-solid ground, red becomes lava, and the little blue guy has to reach the blue flag.
+Draw a level — on paper or on the screen — and play it. An Android app in Kotlin, Jetpack
+Compose and CameraX that turns a hand-drawn sketch into a real 2D platformer: dark lines
+become solid ground, red becomes lava, and the little blue guy has to reach the blue flag.
 
 > Lives in the `The-Floor-Is-Lava` repository for historical reasons — it is a new,
 > unrelated game, not a version of the GPS game that repository started as.
+
+## Two ways to make a level
+
+* **Draw it in the app.** A sketchpad with a pen per element (ground, lava, coin, start,
+  flag), an eraser, undo/redo and a size slider.
+* **Photograph a real drawing.** Point the camera at a page, or pick a photo from the
+  gallery.
+
+Either way the result goes through the *same* detector: the sketchpad rasterises its
+strokes to a bitmap first, so a drawn level and a photographed one cannot behave
+differently.
+
+## Game types
+
+| Mode | Rules |
+| ---- | ----- |
+| Classic | Reach the flag. No clock, no conditions. |
+| Coin hunt | The flag stays shut until every coin has been collected. |
+| Time attack | A countdown sized to the level. Reach the flag before it runs out. |
+| Rising lava | Lava floods the page from the bottom and keeps coming. |
+
+Modes only change the win and lose conditions — never the physics — so every level is
+playable in all four. Both the countdown and the flood speed are derived from the level's
+size in a way that ignores the detail slider, the same property the physics already had.
 
 ## What the detector reads
 
@@ -82,11 +106,31 @@ CameraScreen ──photo──> SketchGameViewModel ──> ImageProcessor ─�
   win/lose overlays. The loop writes one `Float` of state that is read inside the draw
   lambda, so frames invalidate **only the draw phase** — nothing recomposes at 60 fps.
 
-### 4. Shell
+### 4. Sketchpad — `draw/`
+
+* `DrawingState.kt` — the document, in pure Kotlin. Points are stored as fractions of the
+  sheet, so a drawing survives rotation and renders at any size. History is kept as
+  whole-document **snapshots**, which is what makes an eraser sweep or a clear exactly one
+  undo step instead of one per stroke.
+* `DrawingController.kt` — editing state with a stable identity, so the long-lived gesture
+  handler cannot capture a stale tool or a stale document.
+* `StrokeRasterizer.kt` — paints the sheet at 1200px in ink colours picked to land on the
+  detector's reference hues, then hands it to `ImageProcessor` like any photo.
+
+### 5. Shell — `ui/`, `data/`
 
 `MainActivity.kt` (single activity) → `PaperJumpApp.kt` (Navigation Compose:
-capture → tune → game) → `SketchGameViewModel.kt`, which owns the bitmap and the level so
-they survive rotation and navigation.
+home → draw/photograph/library → tune → mode → game) → `SketchGameViewModel.kt`, which owns
+the bitmap, the level, the sketchpad and the library so they survive rotation and
+navigation.
+
+* **My levels** — saved as the *source image plus its tuning*, not as a serialised level.
+  The level is re-derived in milliseconds by the current detector, so improving detection
+  improves every level already in the library instead of leaving them frozen.
+* **Personal bests** — kept per level *content* and per mode, so a level keeps its records
+  whether or not it was ever saved.
+* **Settings** — theme, which side the jump button sits on, button size, vibration, timer.
+  Everything on that screen changes something.
 
 ## Build and run
 
@@ -108,3 +152,9 @@ runs the unit tests, lint and an APK build on every push.
   ink from paper, rectangle merging is exact and colour specks are ignored.
 * `GameEngineTest` — landing, jump arcs, variable jump height, walls, lava, falling off the
   page, coin pickup, winning, restart, frame-rate independence and resolution independence.
+* `GameModeTest` — each mode's win and lose conditions, and that neither the countdown nor
+  the flood speed moves when the same drawing is sampled at a different resolution.
+* `DrawingStateTest` — undo/redo, single-step erase and clear, and hit-testing against the
+  *middle* of a long stroke rather than only its sampled points.
+* `PersistenceCodecTest` — round trips for both on-disk formats, names containing `=` or a
+  newline, and proof that one corrupt row cannot take the library down with it.
