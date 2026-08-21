@@ -1,0 +1,237 @@
+package com.paperjump.ui
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import com.paperjump.data.AppSettings
+import com.paperjump.data.ThemeChoice
+import com.paperjump.ui.components.ScreenHeader
+import com.paperjump.ui.components.SectionLabel
+import com.paperjump.ui.components.SegmentedChoice
+import com.paperjump.ui.components.ToggleRow
+import kotlin.math.roundToInt
+
+/** Everything the player can change, and the door to wiping saved data. */
+@Composable
+fun SettingsScreen(
+    settings: AppSettings,
+    savedLevelCount: Int,
+    versionName: String,
+    onSettingsChange: ((AppSettings) -> AppSettings) -> Unit,
+    onClearLevels: () -> Unit,
+    onClearRecords: () -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var confirmingClearLevels by remember { mutableStateOf(false) }
+    var confirmingClearRecords by remember { mutableStateOf(false) }
+
+    Column(modifier = modifier.fillMaxSize().safeDrawingPadding()) {
+        ScreenHeader(title = "Settings", onBack = onBack)
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            SectionLabel("Appearance")
+            SegmentedChoice(
+                options = ThemeChoice.entries.toList(),
+                selected = settings.theme,
+                label = { it.label },
+                onSelect = { choice -> onSettingsChange { it.copy(theme = choice) } },
+            )
+
+            SectionLabel("Controls")
+            ToggleRow(
+                title = "Jump button on the right",
+                subtitle = if (settings.jumpOnRight) {
+                    "Move with the left thumb, jump with the right"
+                } else {
+                    "Move with the right thumb, jump with the left"
+                },
+                checked = settings.jumpOnRight,
+                onCheckedChange = { value -> onSettingsChange { it.copy(jumpOnRight = value) } },
+            )
+            ToggleRow(
+                title = "Vibration",
+                subtitle = "A short buzz on jump",
+                checked = settings.haptics,
+                onCheckedChange = { value -> onSettingsChange { it.copy(haptics = value) } },
+            )
+            ControlSizeSetting(
+                scale = settings.controlScale,
+                onChange = { value -> onSettingsChange { it.copy(controlScale = value) } },
+            )
+
+            SectionLabel("Heads-up display")
+            ToggleRow(
+                title = "Show the timer",
+                subtitle = "Time attack always shows its countdown",
+                checked = settings.showTimer,
+                onCheckedChange = { value -> onSettingsChange { it.copy(showTimer = value) } },
+            )
+
+            SectionLabel("Saved data")
+            OutlinedButton(
+                onClick = { confirmingClearRecords = true },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Clear personal bests")
+            }
+            OutlinedButton(
+                onClick = { confirmingClearLevels = true },
+                enabled = savedLevelCount > 0,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = if (savedLevelCount > 0) {
+                        "Delete all $savedLevelCount saved levels"
+                    } else {
+                        "No saved levels"
+                    },
+                    color = if (savedLevelCount > 0) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
+
+            SectionLabel("About")
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 1.dp,
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Paper Jump $versionName", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = "Photograph or draw a level, and play it as a platformer. " +
+                            "Everything stays on this device — no account, no network.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+
+    if (confirmingClearLevels) {
+        ConfirmDialog(
+            title = "Delete all saved levels?",
+            message = "All $savedLevelCount levels in your library will be removed. This cannot be undone.",
+            confirmLabel = "Delete all",
+            destructive = true,
+            onConfirm = {
+                onClearLevels()
+                confirmingClearLevels = false
+            },
+            onDismiss = { confirmingClearLevels = false },
+        )
+    }
+
+    if (confirmingClearRecords) {
+        ConfirmDialog(
+            title = "Clear personal bests?",
+            message = "Best times and coin counts for every level and mode will be reset. " +
+                "Your saved levels are not affected.",
+            confirmLabel = "Clear",
+            destructive = true,
+            onConfirm = {
+                onClearRecords()
+                confirmingClearRecords = false
+            },
+            onDismiss = { confirmingClearRecords = false },
+        )
+    }
+}
+
+@Composable
+private fun ControlSizeSetting(scale: Float, onChange: (Float) -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Button size",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = "${(scale * 100).roundToInt()}%",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            Slider(
+                value = scale,
+                onValueChange = onChange,
+                valueRange = AppSettings.MIN_CONTROL_SCALE..AppSettings.MAX_CONTROL_SCALE,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ConfirmDialog(
+    title: String,
+    message: String,
+    confirmLabel: String,
+    destructive: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(message) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(
+                    text = confirmLabel,
+                    color = if (destructive) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    },
+                )
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}

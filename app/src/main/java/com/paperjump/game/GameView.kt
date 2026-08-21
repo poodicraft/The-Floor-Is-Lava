@@ -24,10 +24,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -46,6 +46,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -65,16 +66,19 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.paperjump.data.AppSettings
+import com.paperjump.data.LevelRecord
 import com.paperjump.processing.LevelData
 import com.paperjump.ui.theme.CoinGold
 import com.paperjump.ui.theme.InkBlack
 import com.paperjump.ui.theme.LavaOrange
+import com.paperjump.ui.theme.LavaRed
 import com.paperjump.ui.theme.SpringGreen
 import java.util.Locale
 import kotlin.math.min
 
 /**
- * The playable screen: canvas, game loop, touch controls and the win/lose overlays.
+ * The playable screen: canvas, game loop, touch controls, pause and the result overlay.
  *
  * The loop is a plain `withFrameNanos` ticker; [GameEngine] owns the whole simulation and
  * this composable only forwards input, advances time and draws the result.
@@ -86,17 +90,27 @@ import kotlin.math.min
 @Composable
 fun GameView(
     level: LevelData,
-    onBackToTuning: () -> Unit,
-    onNewSketch: () -> Unit,
+    mode: GameMode,
+    settings: AppSettings,
+    record: LevelRecord,
+    wasPersonalBest: Boolean,
+    onRunFinished: (won: Boolean, seconds: Float, coins: Int) -> Unit,
+    onChangeMode: () -> Unit,
+    onTune: () -> Unit,
+    onQuit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val engine = remember(level) { GameEngine(level) }
+    val engine = remember(level, mode) { GameEngine(level, mode) }
     val styleScale = remember(level) { GameRenderer.styleScale(level) }
     val haptics = LocalHapticFeedback.current
 
     var renderTime by remember(engine) { mutableFloatStateOf(0f) }
     var hud by remember(engine) { mutableStateOf(HudState.of(engine)) }
+    var isPaused by remember(engine) { mutableStateOf(false) }
     val cameraFocus = remember(engine) { floatArrayOf(engine.playerCenterX, engine.playerCenterY) }
+
+    // The loop lives for the whole screen, so it must not capture a stale callback.
+    val reportRun by rememberUpdatedState(onRunFinished)
 
     // Games should not let the screen sleep mid-jump.
     val view = LocalView.current
@@ -107,6 +121,7 @@ fun GameView(
 
     LaunchedEffect(engine) {
         var lastFrameNanos = 0L
+        var reportedAttempt = 0
         while (true) {
             withFrameNanos { now ->
                 val delta = if (lastFrameNanos == 0L) {
@@ -117,17 +132,30 @@ fun GameView(
                 }
                 lastFrameNanos = now
 
-                engine.update(delta)
+                if (!isPaused) {
+                    engine.update(delta)
 
-                // Exponential camera smoothing; the constant is per-second, not per-frame.
-                val follow = min(1f, delta * 9f)
-                cameraFocus[0] += (engine.playerCenterX - cameraFocus[0]) * follow
-                cameraFocus[1] += (engine.playerCenterY - cameraFocus[1]) * follow
+                    // Exponential camera smoothing; the constant is per-second, not per-frame.
+                    val follow = min(1f, delta * 9f)
+                    cameraFocus[0] += (engine.playerCenterX - cameraFocus[0]) * follow
+                    cameraFocus[1] += (engine.playerCenterY - cameraFocus[1]) * follow
+                }
 
                 renderTime += delta
             }
+
             val snapshot = HudState.of(engine)
             if (snapshot != hud) hud = snapshot
+
+            // Report each run exactly once, however many frames it stays on the overlay.
+            if (engine.status != GameStatus.PLAYING && reportedAttempt != engine.attempts) {
+                reportedAttempt = engine.attempts
+                reportRun(
+                    engine.status == GameStatus.WON,
+                    engine.elapsedSeconds,
+                    engine.coinsCollected,
+                )
+            }
         }
     }
 
@@ -152,7 +180,7 @@ fun GameView(
                 drawPaper(camera, level.cols, level.rows, styleScale)
                 withWorld(camera) {
                     drawSpawnMarker(level, time, styleScale)
-                    level.goal?.let { drawGoal(it, time, styleScale) }
+                    level.goal?.let { drawGoal(it, time, styleScale, locked = engine.isGoalLocked) }
                     drawPlatforms(level.platforms, styleScale)
                     drawHazards(level.hazards, time, styleScale)
                     drawCoins(
@@ -164,6 +192,7 @@ fun GameView(
                         styleScale = styleScale,
                     )
                     drawPlayer(engine, time)
+                    engine.lavaSurfaceY?.let { drawRisingLava(it, level, time, styleScale) }
                 }
                 drawScrims()
             }
@@ -173,22 +202,40 @@ fun GameView(
             modifier = Modifier.fillMaxSize().safeDrawingPadding(),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            GameHud(hud = hud, onLeave = onBackToTuning, modifier = Modifier.fillMaxWidth())
+            GameHud(
+                hud = hud,
+                mode = mode,
+                showTimer = settings.showTimer,
+                onPause = { isPaused = true },
+                modifier = Modifier.fillMaxWidth(),
+            )
 
             TouchControls(
-                enabled = hud.status == GameStatus.PLAYING,
+                enabled = hud.status == GameStatus.PLAYING && !isPaused,
+                jumpOnRight = settings.jumpOnRight,
+                scale = settings.controlScale,
                 onLeft = { engine.moveLeft = it },
                 onRight = { engine.moveRight = it },
                 onJump = { pressed ->
                     if (pressed) {
                         engine.pressJump()
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        if (settings.haptics) {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        }
                     } else {
                         engine.releaseJump()
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
             )
+        }
+
+        val restart = {
+            engine.moveLeft = false
+            engine.moveRight = false
+            engine.restart()
+            cameraFocus[0] = engine.playerCenterX
+            cameraFocus[1] = engine.playerCenterY
         }
 
         AnimatedVisibility(
@@ -199,15 +246,31 @@ fun GameView(
         ) {
             ResultOverlay(
                 hud = hud,
-                onRetry = {
-                    engine.moveLeft = false
-                    engine.moveRight = false
-                    engine.restart()
-                    cameraFocus[0] = engine.playerCenterX
-                    cameraFocus[1] = engine.playerCenterY
+                mode = mode,
+                record = record,
+                wasPersonalBest = wasPersonalBest,
+                onRetry = restart,
+                onChangeMode = onChangeMode,
+                onTune = onTune,
+                onQuit = onQuit,
+            )
+        }
+
+        AnimatedVisibility(
+            visible = isPaused && hud.status == GameStatus.PLAYING,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.Center),
+        ) {
+            PauseOverlay(
+                mode = mode,
+                onResume = { isPaused = false },
+                onRestart = {
+                    restart()
+                    isPaused = false
                 },
-                onTune = onBackToTuning,
-                onNewSketch = onNewSketch,
+                onChangeMode = onChangeMode,
+                onQuit = onQuit,
             )
         }
     }
@@ -216,6 +279,9 @@ fun GameView(
 private const val MIN_FRAME_DELTA = 1f / 240f
 private const val MAX_FRAME_DELTA = 1f / 15f
 
+/** Under this many seconds left, the countdown turns red and starts nagging. */
+private const val CLOCK_PANIC_SECONDS = 5f
+
 /** The slice of engine state the HUD shows, quantised so it changes ~10x a second. */
 data class HudState(
     val coins: Int,
@@ -223,8 +289,16 @@ data class HudState(
     val status: GameStatus,
     val tenthsOfSecond: Int,
     val attempts: Int,
+    val remainingTenths: Int?,
+    val goalLocked: Boolean,
+    val deathCause: DeathCause,
 ) {
-    val timeLabel: String get() = String.format(Locale.US, "%.1fs", tenthsOfSecond / 10f)
+    val seconds: Float get() = tenthsOfSecond / 10f
+    val timeLabel: String get() = String.format(Locale.US, "%.1fs", seconds)
+    val remainingLabel: String?
+        get() = remainingTenths?.let { String.format(Locale.US, "%.1fs", it / 10f) }
+    val isPanicking: Boolean
+        get() = remainingTenths != null && remainingTenths <= (CLOCK_PANIC_SECONDS * 10).toInt()
 
     companion object {
         fun of(engine: GameEngine) = HudState(
@@ -233,22 +307,50 @@ data class HudState(
             status = engine.status,
             tenthsOfSecond = (engine.elapsedSeconds * 10f).toInt(),
             attempts = engine.attempts,
+            remainingTenths = engine.timeRemaining?.let { (it * 10f).toInt() },
+            goalLocked = engine.isGoalLocked,
+            deathCause = engine.deathCause,
         )
     }
 }
 
 @Composable
-private fun GameHud(hud: HudState, onLeave: () -> Unit, modifier: Modifier = Modifier) {
+private fun GameHud(
+    hud: HudState,
+    mode: GameMode,
+    showTimer: Boolean,
+    onPause: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Row(
         modifier = modifier.padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        IconButton(onClick = onLeave) {
-            Icon(Icons.Rounded.Close, contentDescription = "Leave level", tint = Color.White)
+        IconButton(onClick = onPause) {
+            Icon(Icons.Rounded.Pause, contentDescription = "Pause", tint = Color.White)
         }
-        HudPill(text = "${hud.coins}/${hud.totalCoins}", accent = CoinGold, label = "Coins")
-        HudPill(text = hud.timeLabel, accent = Color.White, label = "Time")
+
+        if (hud.totalCoins > 0 || mode == GameMode.COIN_HUNT) {
+            HudPill(
+                text = "${hud.coins}/${hud.totalCoins}",
+                accent = if (hud.goalLocked) CoinGold else SpringGreen,
+                label = if (hud.goalLocked) "Coins still to collect" else "Coins",
+            )
+        }
+
+        hud.remainingLabel?.let { remaining ->
+            HudPill(
+                text = remaining,
+                accent = if (hud.isPanicking) LavaRed else Color.White,
+                label = "Time left",
+            )
+        }
+
+        if (showTimer && hud.remainingLabel == null) {
+            HudPill(text = hud.timeLabel, accent = Color.White, label = "Time")
+        }
+
         if (hud.attempts > 1) {
             HudPill(text = "#${hud.attempts}", accent = LavaOrange, label = "Attempt")
         }
@@ -276,11 +378,17 @@ private fun HudPill(text: String, accent: Color, label: String) {
 @Composable
 private fun TouchControls(
     enabled: Boolean,
+    jumpOnRight: Boolean,
+    scale: Float,
     onLeft: (Boolean) -> Unit,
     onRight: (Boolean) -> Unit,
     onJump: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val moveDiameter = (76 * scale).dp
+    val jumpDiameter = (88 * scale).dp
+    val iconSize = (40 * scale).dp
+
     // Movement controls are physical, not textual: in an RTL locale the button that moves
     // the player left must still sit on the left and point left.
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
@@ -291,34 +399,57 @@ private fun TouchControls(
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                HoldButton(description = "Move left", enabled = enabled, onPressedChange = onLeft) {
-                    Icon(
-                        Icons.Rounded.ChevronLeft,
-                        contentDescription = null,
-                        modifier = Modifier.size(40.dp),
-                    )
+            val moveCluster: @Composable () -> Unit = {
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    HoldButton(
+                        description = "Move left",
+                        enabled = enabled,
+                        diameter = moveDiameter,
+                        onPressedChange = onLeft,
+                    ) {
+                        Icon(
+                            Icons.Rounded.ChevronLeft,
+                            contentDescription = null,
+                            modifier = Modifier.size(iconSize),
+                        )
+                    }
+                    HoldButton(
+                        description = "Move right",
+                        enabled = enabled,
+                        diameter = moveDiameter,
+                        onPressedChange = onRight,
+                    ) {
+                        Icon(
+                            Icons.Rounded.ChevronRight,
+                            contentDescription = null,
+                            modifier = Modifier.size(iconSize),
+                        )
+                    }
                 }
-                HoldButton(description = "Move right", enabled = enabled, onPressedChange = onRight) {
+            }
+
+            val jumpButton: @Composable () -> Unit = {
+                HoldButton(
+                    description = "Jump",
+                    enabled = enabled,
+                    accent = LavaOrange,
+                    diameter = jumpDiameter,
+                    onPressedChange = onJump,
+                ) {
                     Icon(
-                        Icons.Rounded.ChevronRight,
+                        Icons.Rounded.KeyboardArrowUp,
                         contentDescription = null,
-                        modifier = Modifier.size(40.dp),
+                        modifier = Modifier.size(iconSize * 1.1f),
                     )
                 }
             }
-            HoldButton(
-                description = "Jump",
-                enabled = enabled,
-                accent = LavaOrange,
-                diameter = 88.dp,
-                onPressedChange = onJump,
-            ) {
-                Icon(
-                    Icons.Rounded.KeyboardArrowUp,
-                    contentDescription = null,
-                    modifier = Modifier.size(44.dp),
-                )
+
+            if (jumpOnRight) {
+                moveCluster()
+                jumpButton()
+            } else {
+                jumpButton()
+                moveCluster()
             }
         }
     }
@@ -380,13 +511,86 @@ private fun HoldButton(
 }
 
 @Composable
+private fun PauseOverlay(
+    mode: GameMode,
+    onResume: () -> Unit,
+    onRestart: () -> Unit,
+    onChangeMode: () -> Unit,
+    onQuit: () -> Unit,
+) {
+    OverlayCard(title = "Paused", subtitle = mode.title, accent = Color.White) {
+        Button(onClick = onResume, modifier = Modifier.fillMaxWidth()) { Text("Resume") }
+        OutlinedButton(onClick = onRestart, modifier = Modifier.fillMaxWidth()) {
+            Text("Restart level")
+        }
+        OutlinedButton(onClick = onChangeMode, modifier = Modifier.fillMaxWidth()) {
+            Text("Change game type")
+        }
+        TextButton(onClick = onQuit, modifier = Modifier.fillMaxWidth()) { Text("Quit to menu") }
+    }
+}
+
+@Composable
 private fun ResultOverlay(
     hud: HudState,
+    mode: GameMode,
+    record: LevelRecord,
+    wasPersonalBest: Boolean,
     onRetry: () -> Unit,
+    onChangeMode: () -> Unit,
     onTune: () -> Unit,
-    onNewSketch: () -> Unit,
+    onQuit: () -> Unit,
 ) {
     val won = hud.status == GameStatus.WON
+    OverlayCard(
+        title = if (won) headlineFor(mode) else deathHeadline(hud.deathCause),
+        subtitle = if (won) {
+            buildString {
+                append("Coins ${hud.coins}/${hud.totalCoins}")
+                append("  ·  ${hud.timeLabel}")
+                if (hud.attempts > 1) append("  ·  attempt ${hud.attempts}")
+            }
+        } else {
+            deathExplanation(hud.deathCause)
+        },
+        accent = if (won) SpringGreen else LavaOrange,
+    ) {
+        if (won && wasPersonalBest) {
+            Text(
+                text = "New best time!",
+                style = MaterialTheme.typography.titleMedium,
+                color = CoinGold,
+                textAlign = TextAlign.Center,
+            )
+        } else if (won) {
+            record.bestTimeSeconds?.let {
+                Text(
+                    text = String.format(Locale.US, "Your best: %.1fs", it),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
+
+        Button(onClick = onRetry, modifier = Modifier.fillMaxWidth()) {
+            Text(if (won) "Play again" else "Try again")
+        }
+        OutlinedButton(onClick = onChangeMode, modifier = Modifier.fillMaxWidth()) {
+            Text("Change game type")
+        }
+        TextButton(onClick = onTune, modifier = Modifier.fillMaxWidth()) { Text("Tune this level") }
+        TextButton(onClick = onQuit, modifier = Modifier.fillMaxWidth()) { Text("Quit to menu") }
+    }
+}
+
+@Composable
+private fun OverlayCard(
+    title: String,
+    subtitle: String,
+    accent: Color,
+    content: @Composable () -> Unit,
+) {
     Card(
         modifier = Modifier.padding(24.dp).width(320.dp),
         shape = RoundedCornerShape(28.dp),
@@ -395,34 +599,43 @@ private fun ResultOverlay(
         Column(
             modifier = Modifier.padding(24.dp).fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
-                text = if (won) "Level complete!" else "Burnt to a crisp",
+                text = title,
                 style = MaterialTheme.typography.headlineSmall,
-                color = if (won) SpringGreen else LavaOrange,
+                color = accent,
                 textAlign = TextAlign.Center,
             )
             Text(
-                text = if (won) {
-                    "Coins ${hud.coins}/${hud.totalCoins}  ·  ${hud.timeLabel}  ·  attempt ${hud.attempts}"
-                } else {
-                    "You hit the lava — or fell clean off the page."
-                },
+                text = subtitle,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.size(4.dp))
-            Button(onClick = onRetry, modifier = Modifier.fillMaxWidth()) {
-                Text(if (won) "Play again" else "Try again")
-            }
-            OutlinedButton(onClick = onTune, modifier = Modifier.fillMaxWidth()) {
-                Text("Tune this level")
-            }
-            TextButton(onClick = onNewSketch, modifier = Modifier.fillMaxWidth()) {
-                Text("Draw a new level")
-            }
+            content()
         }
     }
+}
+
+private fun headlineFor(mode: GameMode): String = when (mode) {
+    GameMode.CLASSIC -> "Level complete!"
+    GameMode.COIN_HUNT -> "Every coin, and out!"
+    GameMode.TIME_ATTACK -> "Made it in time!"
+    GameMode.RISING_LAVA -> "Out before the flood!"
+}
+
+private fun deathHeadline(cause: DeathCause): String = when (cause) {
+    DeathCause.TIME_UP -> "Out of time"
+    DeathCause.FLOODED -> "Swallowed by the lava"
+    DeathCause.FELL -> "Off the page"
+    else -> "Burnt to a crisp"
+}
+
+private fun deathExplanation(cause: DeathCause): String = when (cause) {
+    DeathCause.TIME_UP -> "The clock ran out before you reached the flag."
+    DeathCause.FLOODED -> "The rising lava caught up with you. Keep climbing."
+    DeathCause.FELL -> "You fell off the bottom of the page."
+    else -> "You touched the lava."
 }

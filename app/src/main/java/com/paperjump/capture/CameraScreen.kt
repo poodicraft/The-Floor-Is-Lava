@@ -29,10 +29,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -56,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.paperjump.data.LevelSource
 import com.paperjump.processing.SampleSketch
 import com.paperjump.ui.SketchLegend
 import com.paperjump.ui.theme.InkBlack
@@ -74,7 +77,8 @@ import kotlin.coroutines.resumeWithException
  */
 @Composable
 fun CameraScreen(
-    onSketchSelected: (Bitmap) -> Unit,
+    onSketchSelected: (Bitmap, LevelSource) -> Unit,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -100,7 +104,7 @@ fun CameraScreen(
             if (bitmap == null) {
                 errorMessage = "That image could not be opened. Try another one."
             } else {
-                onSketchSelected(bitmap)
+                onSketchSelected(bitmap, LevelSource.PHOTO)
             }
         }
     }
@@ -160,8 +164,17 @@ fun CameraScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White,
+                        )
+                    }
+                }
                 Text(
-                    text = "Draw it. Photograph it. Play it.",
+                    text = "Photograph your sketch",
                     style = MaterialTheme.typography.headlineSmall,
                     color = Color.White,
                     textAlign = TextAlign.Center,
@@ -216,7 +229,7 @@ fun CameraScreen(
                                 context = context,
                                 onBitmap = { bitmap ->
                                     isBusy = false
-                                    onSketchSelected(bitmap)
+                                    onSketchSelected(bitmap, LevelSource.PHOTO)
                                 },
                                 onFailure = { message ->
                                     isBusy = false
@@ -240,7 +253,7 @@ fun CameraScreen(
                             isBusy = true
                             val sample = withContext(Dispatchers.Default) { SampleSketch.create() }
                             isBusy = false
-                            onSketchSelected(sample)
+                            onSketchSelected(sample, LevelSource.SAMPLE)
                         }
                     },
                 ) {

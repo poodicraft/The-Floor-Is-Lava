@@ -89,8 +89,11 @@ data class Tuning(
  */
 class GameEngine(
     val level: LevelData,
+    val mode: GameMode = GameMode.CLASSIC,
     val tuning: Tuning = Tuning.forLevel(level),
 ) {
+    val rules: ModeRules = mode.rulesFor(level, tuning)
+
     var playerX: Float = 0f
         private set
     var playerY: Float = 0f
@@ -112,6 +115,26 @@ class GameEngine(
         private set
     var coinsCollected: Int = 0
         private set
+    var deathCause: DeathCause = DeathCause.NONE
+        private set
+
+    /**
+     * Seconds left in [GameMode.TIME_ATTACK]. `null` in every untimed mode, so the HUD can
+     * tell "no clock" apart from "no time left".
+     */
+    var timeRemaining: Float? = rules.timeLimitSeconds
+        private set
+
+    /**
+     * World Y of the top of the flood in [GameMode.RISING_LAVA], `null` in other modes.
+     * Smaller means higher up the page, since Y grows downwards.
+     */
+    var lavaSurfaceY: Float? = initialLavaSurface()
+        private set
+
+    /** In [GameMode.COIN_HUNT] the goal does nothing until the page has been cleared. */
+    val isGoalLocked: Boolean
+        get() = rules.requireAllCoins && coinsCollected < totalCoins
 
     val totalCoins: Int get() = level.coins.size
     val playerWidth: Float get() = tuning.playerWidth
@@ -171,7 +194,14 @@ class GameEngine(
         coyote = 0f
         jumpHeld = false
         accumulator = 0f
+        deathCause = DeathCause.NONE
+        timeRemaining = rules.timeLimitSeconds
+        lavaSurfaceY = initialLavaSurface()
     }
+
+    /** The flood waits just off the bottom edge of the page until its grace period is up. */
+    private fun initialLavaSurface(): Float? =
+        if (rules.hasRisingLava) level.height + rules.risingLavaStartOffset else null
 
     private fun spawnPlayer() {
         // Feet on the bottom edge of the spawn cell — which [LevelBuilder] guarantees is
@@ -219,8 +249,22 @@ class GameEngine(
 
         updateGroundState()
         checkCoins()
+        advanceModeClocks(dt)
         checkHazards()
         checkGoal()
+    }
+
+    /** The countdown and the flood: the only two things a mode adds to the simulation. */
+    private fun advanceModeClocks(dt: Float) {
+        timeRemaining?.let { remaining ->
+            val left = remaining - dt
+            timeRemaining = max(0f, left)
+            if (left <= 0f) die(DeathCause.TIME_UP)
+        }
+
+        val speed = rules.risingLavaSpeed ?: return
+        if (elapsedSeconds < rules.risingLavaGraceSeconds) return
+        lavaSurfaceY = lavaSurfaceY?.minus(speed * dt)
     }
 
     private fun applyHorizontalInput(dt: Float) {
@@ -357,6 +401,8 @@ class GameEngine(
     }
 
     private fun checkHazards() {
+        if (status != GameStatus.PLAYING) return
+
         // A slightly shrunk body: brushing a lava outline by a hair should not kill.
         val forgiveness = tuning.playerWidth * HAZARD_FORGIVENESS_FRACTION
         val hit = level.intersectsHazard(
@@ -365,19 +411,30 @@ class GameEngine(
             tuning.playerWidth - forgiveness * 2f,
             tuning.playerHeight - forgiveness * 2f,
         )
-        val fellOut = playerY > level.height + tuning.fallOutMargin
-        if (hit || fellOut) {
-            status = GameStatus.DEAD
-            velocityX = 0f
+        when {
+            hit -> die(DeathCause.LAVA)
+            // The flood takes the feet, not the whole body, so standing in the shallows is
+            // the moment of death rather than being fully submerged.
+            lavaSurfaceY?.let { playerY + tuning.playerHeight > it } == true -> die(DeathCause.FLOODED)
+            playerY > level.height + tuning.fallOutMargin -> die(DeathCause.FELL)
         }
     }
 
     private fun checkGoal() {
+        if (status != GameStatus.PLAYING) return
+        if (isGoalLocked) return
         val goal = level.goal ?: return
         if (goal.overlaps(playerX, playerY, tuning.playerWidth, tuning.playerHeight)) {
             status = GameStatus.WON
             velocityX = 0f
         }
+    }
+
+    private fun die(cause: DeathCause) {
+        if (status != GameStatus.PLAYING) return
+        status = GameStatus.DEAD
+        deathCause = cause
+        velocityX = 0f
     }
 
     // ---- helpers --------------------------------------------------------------

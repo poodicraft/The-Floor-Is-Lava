@@ -184,9 +184,14 @@ object GameRenderer {
     }
 
     /** The goal flag: a pole with a banner that ripples. */
-    fun DrawScope.drawGoal(goal: LevelRect, timeSeconds: Float, styleScale: Float = 1f) {
+    fun DrawScope.drawGoal(
+        goal: LevelRect,
+        timeSeconds: Float,
+        styleScale: Float = 1f,
+        locked: Boolean = false,
+    ) {
         drawRect(
-            color = SkyBlue.copy(alpha = 0.18f),
+            color = SkyBlue.copy(alpha = if (locked) 0.07f else 0.18f),
             topLeft = Offset(goal.x, goal.y),
             size = Size(goal.width, goal.height),
         )
@@ -208,7 +213,52 @@ object GameRenderer {
             lineTo(poleX, goal.y + 0.1f + flagHeight)
             close()
         }
-        drawPath(banner, color = SkyBlue)
+        // A locked flag (Coin hunt, coins still on the page) hangs limp and grey, so the
+        // player can see at a glance that touching it will do nothing yet.
+        drawPath(banner, color = if (locked) InkSoft.copy(alpha = 0.55f) else SkyBlue)
+    }
+
+    /**
+     * The flood in [com.paperjump.game.GameMode.RISING_LAVA].
+     *
+     * Drawn across the whole page rather than only the visible slice: the surface is a
+     * single horizontal line, so there is nothing to gain from clipping it, and the wave
+     * has to stay continuous when the camera pans.
+     */
+    fun DrawScope.drawRisingLava(
+        surfaceY: Float,
+        level: LevelData,
+        timeSeconds: Float,
+        styleScale: Float = 1f,
+    ) {
+        val bottom = level.height + 6f * styleScale
+        if (surfaceY >= bottom) return
+
+        drawRect(
+            brush = Brush.verticalGradient(
+                colors = listOf(LavaOrange.copy(alpha = 0.92f), LavaRed),
+                startY = surfaceY,
+                endY = bottom,
+            ),
+            topLeft = Offset(0f, surfaceY),
+            size = Size(level.width, bottom - surfaceY),
+        )
+
+        val amplitude = 0.22f * styleScale
+        val crest = Path().apply {
+            moveTo(0f, surfaceY)
+            var x = 0f
+            while (x < level.width) {
+                val next = min(x + 0.4f * styleScale, level.width)
+                val phase = (next * 1.4f / styleScale) + timeSeconds * 2.4f
+                lineTo(next, surfaceY + sin(phase) * amplitude)
+                x = next
+            }
+            lineTo(level.width, surfaceY + 0.45f * styleScale)
+            lineTo(0f, surfaceY + 0.45f * styleScale)
+            close()
+        }
+        drawPath(crest, color = LavaEmber.copy(alpha = 0.9f))
     }
 
     /** The spawn marker, so players can find their way back to the start. */

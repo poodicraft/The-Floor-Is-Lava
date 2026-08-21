@@ -60,6 +60,8 @@ android {
 
     buildFeatures {
         compose = true
+        // For BuildConfig.VERSION_NAME, shown on the home and settings screens.
+        buildConfig = true
     }
 
     packaging {

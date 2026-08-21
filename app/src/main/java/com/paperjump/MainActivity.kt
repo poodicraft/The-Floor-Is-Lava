@@ -5,17 +5,19 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import com.paperjump.data.ThemeChoice
 import com.paperjump.ui.theme.PaperJumpTheme
 
 /**
  * Single-activity host. Everything else is Compose.
  *
- * The ViewModel is created here (rather than per-screen) so the captured sketch and the
- * detected level are shared by the capture, tuning and game destinations.
+ * The ViewModel is created here rather than per-screen so the sketch, the level, the
+ * sketchpad and the library are shared by every destination.
  */
 class MainActivity : ComponentActivity() {
 
@@ -25,12 +27,22 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            PaperJumpTheme {
+            val settings = viewModel.settingsRepository.settings
+            val dark = when (settings.theme) {
+                ThemeChoice.SYSTEM -> isSystemInDarkTheme()
+                ThemeChoice.LIGHT -> false
+                ThemeChoice.DARK -> true
+            }
+
+            PaperJumpTheme(darkTheme = dark) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
-                    PaperJumpApp(viewModel = viewModel)
+                    PaperJumpApp(
+                        viewModel = viewModel,
+                        versionName = BuildConfig.VERSION_NAME,
+                    )
                 }
             }
         }

@@ -18,7 +18,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Bookmark
+import androidx.compose.material.icons.rounded.BookmarkBorder
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -26,9 +29,12 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,12 +67,15 @@ fun LevelTuneScreen(
     config: ProcessingConfig,
     isProcessing: Boolean,
     errorMessage: String?,
+    isSaved: Boolean,
     onConfigChange: (ProcessingConfig) -> Unit,
+    onSave: (String) -> Unit,
     onRetake: () -> Unit,
-    onPlay: () -> Unit,
+    onContinue: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showPhoto by remember { mutableStateOf(false) }
+    var naming by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
 
     Column(
@@ -192,14 +201,67 @@ fun LevelTuneScreen(
         )
 
         Button(
-            onClick = onPlay,
+            onClick = onContinue,
             enabled = level != null,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Icon(Icons.Rounded.PlayArrow, contentDescription = null)
-            Text("  Play this level")
+            Text("  Choose a game type")
+        }
+
+        OutlinedButton(
+            onClick = { naming = true },
+            enabled = level != null,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(
+                if (isSaved) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+            Text(if (isSaved) "  Update in my levels" else "  Save to my levels")
         }
     }
+
+    if (naming) {
+        SaveLevelDialog(
+            onDismiss = { naming = false },
+            onConfirm = { name ->
+                onSave(name)
+                naming = false
+            },
+        )
+    }
+}
+
+/** Asks for a name before a level joins the library. */
+@Composable
+private fun SaveLevelDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var name by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Save this level") },
+        text = {
+            Column {
+                Text(
+                    text = "It will appear in My levels, ready to play again.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it.take(60) },
+                    singleLine = true,
+                    label = { Text("Name") },
+                    placeholder = { Text("My level") },
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = { onConfirm(name) }) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 /** Draws the detected level with the game's own renderer, fitted to the box. */
