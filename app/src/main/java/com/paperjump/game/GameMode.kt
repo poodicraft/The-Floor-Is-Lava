@@ -4,57 +4,95 @@ import com.paperjump.processing.LevelData
 import kotlin.math.abs
 
 /**
- * The four ways to play a drawn level.
+ * The games you can play on a drawing.
  *
- * A mode never changes the physics — the same sketch always handles identically — it only
- * changes the win and lose conditions layered on top, so a level drawn for one mode is
- * still playable in every other.
+ * These are genuinely different games rather than variations on one: they differ in what
+ * moves the player, what the ink *means*, and what the controls even are. The same sheet of
+ * paper is a platformer's ground, a maze's walls, and a flyer's obstacles.
  *
- * Pure Kotlin, like the rest of [GameEngine]: the rules are unit tested on the JVM.
+ * Pure Kotlin, like the rest of the engine, so every rule here is unit tested on the JVM.
  */
 enum class GameMode(
     val title: String,
     val tagline: String,
     val blurb: String,
+    /** What the dark lines do in this game. */
+    val inkMeaning: String,
 ) {
-    CLASSIC(
-        title = "Classic",
-        tagline = "Reach the flag",
-        blurb = "No clock, no conditions. Get to the blue flag without touching the lava.",
+    PLATFORMER(
+        title = "Platformer",
+        tagline = "Run and jump",
+        blurb = "The classic. Walk, jump between the lines you drew, and reach the flag.",
+        inkMeaning = "Ground to stand on",
     ),
-    COIN_HUNT(
-        title = "Coin hunt",
-        tagline = "Every coin, then the flag",
-        blurb = "The flag stays shut until you have picked up every last coin on the page.",
-    ),
-    TIME_ATTACK(
-        title = "Time attack",
-        tagline = "Beat the clock",
-        blurb = "A countdown sized to the level. Reach the flag before it runs out.",
-    ),
-    RISING_LAVA(
-        title = "Rising lava",
-        tagline = "Climb, don't linger",
-        blurb = "Lava floods the page from the bottom and keeps coming. Stay above it.",
-    );
 
-    /**
-     * Rules for this mode on a specific level.
-     *
-     * Everything derived here is expressed so that it is **resolution independent**: the
-     * detail slider changes how finely the sketch is sampled, and a time limit or a lava
-     * speed that ignored that would silently double as a difficulty slider.
-     */
-    fun rulesFor(level: LevelData, tuning: Tuning = Tuning.forLevel(level)): ModeRules = when (this) {
-        CLASSIC -> ModeRules()
+    MAZE(
+        title = "Maze",
+        tagline = "Top-down, no gravity",
+        blurb = "The page becomes a maze seen from above. Nothing falls — steer in any " +
+            "direction, squeeze through the gaps and find the flag.",
+        inkMeaning = "Walls you cannot pass",
+    ),
+
+    FLYER(
+        title = "Flyer",
+        tagline = "Tap to flap",
+        blurb = "You are always drifting forward and always falling. Tap to flap upward " +
+            "and thread the gaps — out here the ink is deadly, not something to land on.",
+        inkMeaning = "Deadly to touch",
+    ),
+
+    RUNNER(
+        title = "Runner",
+        tagline = "No brakes",
+        blurb = "You sprint to the right and never stop. All you control is the jump, so " +
+            "the drawing becomes a course to be read ahead of time.",
+        inkMeaning = "Ground, and walls that end the run",
+    ),
+    ;
+
+    /** Whether the player can steer, which decides what the on-screen controls are. */
+    val controls: ControlScheme
+        get() = when (this) {
+            PLATFORMER -> ControlScheme.RUN_AND_JUMP
+            MAZE -> ControlScheme.EIGHT_WAY
+            FLYER -> ControlScheme.FLAP_ONLY
+            RUNNER -> ControlScheme.JUMP_ONLY
+        }
+
+    /** In [FLYER] the ink kills on contact instead of holding the player up. */
+    val inkIsDeadly: Boolean get() = this == FLYER
+
+    /** [MAZE] is seen from above, so nothing falls and there is no bottom to fall off. */
+    val hasGravity: Boolean get() = this != MAZE
+}
+
+/** Which buttons a game needs on screen. */
+enum class ControlScheme { RUN_AND_JUMP, JUMP_ONLY, FLAP_ONLY, EIGHT_WAY }
+
+/**
+ * An optional extra rule, layered on top of whichever game is being played.
+ *
+ * Twists are the old "modes" put in their proper place: they change the win and lose
+ * conditions without touching how the player moves, so any twist works with any game.
+ */
+enum class Twist(val title: String, val blurb: String) {
+    NONE("No twist", "Just reach the flag."),
+    COIN_HUNT("Coin hunt", "The flag stays shut until every coin is collected."),
+    TIME_ATTACK("Time attack", "A countdown sized to the level."),
+    RISING_LAVA("Rising lava", "Lava floods the page from the bottom."),
+    ;
+
+    fun rulesFor(level: LevelData, tuning: Tuning): ModeRules = when (this) {
+        NONE -> ModeRules()
 
         COIN_HUNT -> ModeRules(requireAllCoins = true)
 
         TIME_ATTACK -> ModeRules(timeLimitSeconds = timeLimitFor(level, tuning))
 
+        // Both are fractions of the page per second, so the flood always takes the same
+        // wall-clock time to cross the same drawing.
         RISING_LAVA -> ModeRules(
-            // Both are fractions of the page per second, so the flood always takes the
-            // same wall-clock time to cross the same drawing.
             risingLavaSpeed = level.height / FLOOD_SECONDS,
             risingLavaGraceSeconds = FLOOD_GRACE_SECONDS,
         )
@@ -71,10 +109,9 @@ enum class GameMode(
          * A countdown worth about four times the straight walk to the flag, plus a few
          * seconds of slack for jumps and hesitation.
          *
-         * The multiplier is what makes the mode playable: the direct line ignores every
-         * detour a drawn route actually takes. The clamps are deliberately wide — they are
-         * there for degenerate sketches (a flag on top of the spawn, a level the size of a
-         * postage stamp), not for ordinary ones, which must land between them or the limit
+         * The multiplier is what makes it playable: the direct line ignores every detour a
+         * drawn route actually takes. The clamps are deliberately wide — they are there for
+         * degenerate sketches, not ordinary ones, which must land between them or the limit
          * would stop responding to how big the drawing is.
          *
          * Distance is in cells and [Tuning.moveSpeed] scales with the same grid, so the
@@ -92,8 +129,17 @@ enum class GameMode(
     }
 }
 
+/** A game and its twist: everything needed to start a run. */
+data class GameSetup(
+    val mode: GameMode = GameMode.PLATFORMER,
+    val twist: Twist = Twist.NONE,
+) {
+    val label: String
+        get() = if (twist == Twist.NONE) mode.title else "${mode.title} · ${twist.title}"
+}
+
 /**
- * What a [GameMode] actually does to a run.
+ * What a [Twist] actually does to a run.
  *
  * @param requireAllCoins the goal does nothing until every coin has been collected.
  * @param timeLimitSeconds countdown for the run; reaching zero is a loss. `null` = untimed.
@@ -123,9 +169,12 @@ enum class DeathCause {
     /** Fell off the bottom of the page. */
     FELL,
 
-    /** [GameMode.TIME_ATTACK] countdown reached zero. */
+    /** [Twist.TIME_ATTACK] countdown reached zero. */
     TIME_UP,
 
-    /** [GameMode.RISING_LAVA] caught up with the player. */
+    /** [Twist.RISING_LAVA] caught up with the player. */
     FLOODED,
+
+    /** [GameMode.FLYER] flew into the ink, or [GameMode.RUNNER] ran into a wall. */
+    CRASHED,
 }

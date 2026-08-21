@@ -4,8 +4,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -14,12 +16,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Flag
-import androidx.compose.material.icons.rounded.MonetizationOn
-import androidx.compose.material.icons.rounded.Timer
-import androidx.compose.material.icons.rounded.Waves
+import androidx.compose.material.icons.rounded.Air
+import androidx.compose.material.icons.rounded.DirectionsRun
+import androidx.compose.material.icons.rounded.Explore
+import androidx.compose.material.icons.rounded.Terrain
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,11 +32,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.paperjump.data.LevelRecord
 import com.paperjump.game.GameMode
+import com.paperjump.game.GameSetup
+import com.paperjump.game.Twist
 import com.paperjump.processing.LevelData
 import com.paperjump.ui.components.ScreenHeader
+import com.paperjump.ui.components.SectionLabel
+import com.paperjump.ui.components.SegmentedChoice
 import com.paperjump.ui.components.StatChip
 import com.paperjump.ui.theme.CoinGold
 import com.paperjump.ui.theme.LavaOrange
@@ -40,17 +50,23 @@ import com.paperjump.ui.theme.SpringGreen
 import java.util.Locale
 
 /**
- * Pick a game type for the level that was just made.
+ * Pick a game for the drawing that was just made.
  *
- * Every mode plays every level, so nothing is ever disabled here — but a mode that will be
- * trivial or impossible on *this* drawing says so up front, which is friendlier than
- * letting someone find out after a run.
+ * This sits directly after making a level, because *what you are playing* is the first
+ * interesting decision — the same page is a platformer, a maze, a flying course or a
+ * runner's track, and the detection settings are a detail you only need when something
+ * came out wrong.
  */
 @Composable
 fun ModeSelectScreen(
-    level: LevelData,
-    recordFor: (GameMode) -> LevelRecord,
-    onPlay: (GameMode) -> Unit,
+    level: LevelData?,
+    isProcessing: Boolean,
+    errorMessage: String?,
+    twist: Twist,
+    recordFor: (GameSetup) -> LevelRecord,
+    onTwistChange: (Twist) -> Unit,
+    onPlay: (GameSetup) -> Unit,
+    onTune: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -60,10 +76,30 @@ fun ModeSelectScreen(
             .safeDrawingPadding(),
     ) {
         ScreenHeader(
-            title = "Choose a game type",
-            subtitle = "The level plays the same; the rules change",
+            title = "Choose a game",
+            subtitle = "Same drawing, four different games",
             onBack = onBack,
         )
+
+        if (level == null) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    if (errorMessage != null) {
+                        Text(
+                            text = errorMessage,
+                            color = MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(24.dp),
+                        )
+                    } else {
+                        CircularProgressIndicator()
+                        Spacer(Modifier.height(16.dp))
+                        Text("Reading your drawing…", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+            return@Column
+        }
 
         Row(
             modifier = Modifier
@@ -71,7 +107,7 @@ fun ModeSelectScreen(
                 .padding(horizontal = 20.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            StatChip(value = level.platforms.size.toString(), label = "platforms")
+            StatChip(value = level.platforms.size.toString(), label = "lines")
             StatChip(value = level.coins.size.toString(), label = "coins", accent = CoinGold)
             StatChip(
                 value = if (level.goal != null) "yes" else "none",
@@ -84,17 +120,58 @@ fun ModeSelectScreen(
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            if (isProcessing) {
+                Text(
+                    text = "Re-reading the drawing…",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            if (level.goal == null) {
+                Text(
+                    text = "There is no blue flag on this page, so no game can be won. " +
+                        "Add one, or adjust how the drawing was read.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+
             GameMode.entries.forEach { mode ->
                 ModeCard(
                     mode = mode,
                     level = level,
-                    record = recordFor(mode),
-                    onClick = { onPlay(mode) },
+                    record = recordFor(GameSetup(mode, twist)),
+                    onClick = { onPlay(GameSetup(mode, twist)) },
                 )
             }
+
+            SectionLabel("Add a twist")
+            SegmentedChoice(
+                options = Twist.entries.toList(),
+                selected = twist,
+                label = { it.title },
+                onSelect = onTwistChange,
+            )
+            Text(
+                text = twist.blurb + if (twist == Twist.COIN_HUNT && level.coins.isEmpty()) {
+                    "  (there are no coins on this page, so the flag opens at once)"
+                } else {
+                    ""
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            OutlinedButton(onClick = onTune, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Rounded.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text("  Something look wrong? Adjust the reading")
+            }
+
+            Spacer(Modifier.height(16.dp))
         }
     }
 }
@@ -156,6 +233,14 @@ private fun ModeCard(
                 modifier = Modifier.padding(top = 10.dp),
             )
 
+            // The same lines mean something different in each game, which is the whole point.
+            Text(
+                text = "Your lines: ${mode.inkMeaning.lowercase()}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = accent,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+
             noteFor(mode, level)?.let { note ->
                 Text(
                     text = note,
@@ -168,36 +253,31 @@ private fun ModeCard(
     }
 }
 
-/** A heads-up about how this mode will behave on this particular drawing. */
-private fun noteFor(mode: GameMode, level: LevelData): String? {
-    if (level.goal == null) {
-        return "No blue flag on this page, so there is nothing to reach — draw one to be able to win."
+/** A heads-up about how this game will behave on this particular drawing. */
+private fun noteFor(mode: GameMode, level: LevelData): String? = when (mode) {
+    GameMode.FLYER -> if (level.platforms.size > 40) {
+        "This page is busy — there may not be much room to fly through."
+    } else {
+        null
     }
-    return when (mode) {
-        GameMode.COIN_HUNT -> if (level.coins.isEmpty()) {
-            "No coins on this page, so the flag is open from the start."
-        } else {
-            null
-        }
-        GameMode.TIME_ATTACK -> {
-            val limit = mode.rulesFor(level).timeLimitSeconds ?: return null
-            "Clock for this level: ${limit.toInt()} seconds."
-        }
-        GameMode.RISING_LAVA -> "The page floods in about 55 seconds."
-        GameMode.CLASSIC -> null
+    GameMode.MAZE -> if (level.platforms.size < 3) {
+        "Barely any walls here, so there is not much of a maze."
+    } else {
+        null
     }
+    else -> null
 }
 
 private fun iconOf(mode: GameMode): ImageVector = when (mode) {
-    GameMode.CLASSIC -> Icons.Rounded.Flag
-    GameMode.COIN_HUNT -> Icons.Rounded.MonetizationOn
-    GameMode.TIME_ATTACK -> Icons.Rounded.Timer
-    GameMode.RISING_LAVA -> Icons.Rounded.Waves
+    GameMode.PLATFORMER -> Icons.Rounded.Terrain
+    GameMode.MAZE -> Icons.Rounded.Explore
+    GameMode.FLYER -> Icons.Rounded.Air
+    GameMode.RUNNER -> Icons.Rounded.DirectionsRun
 }
 
 private fun accentOf(mode: GameMode): Color = when (mode) {
-    GameMode.CLASSIC -> SkyBlue
-    GameMode.COIN_HUNT -> CoinGold
-    GameMode.TIME_ATTACK -> SpringGreen
-    GameMode.RISING_LAVA -> LavaOrange
+    GameMode.PLATFORMER -> SkyBlue
+    GameMode.MAZE -> SpringGreen
+    GameMode.FLYER -> CoinGold
+    GameMode.RUNNER -> LavaOrange
 }

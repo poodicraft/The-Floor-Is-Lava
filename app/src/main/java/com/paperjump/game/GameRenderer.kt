@@ -95,18 +95,26 @@ object GameRenderer {
     }
 
     /** Solid ink: the platforms the player stands on. */
-    fun DrawScope.drawPlatforms(platforms: List<LevelRect>, styleScale: Float = 1f) {
+    fun DrawScope.drawPlatforms(
+        platforms: List<LevelRect>,
+        styleScale: Float = 1f,
+        /** In [GameMode.FLYER] the ink kills, so it must not read as something to stand on. */
+        deadly: Boolean = false,
+    ) {
         val corner = CornerRadius(0.12f * styleScale, 0.12f * styleScale)
+        val body = if (deadly) Color(0xFF6B2018) else InkSoft
+        val cap = if (deadly) LavaRed else Color(0xFF4A4238)
         platforms.forEach { rect ->
             drawRoundRect(
-                color = InkSoft,
+                color = body,
                 topLeft = Offset(rect.x, rect.y),
                 size = Size(rect.width, rect.height),
                 cornerRadius = corner,
             )
-            // A lighter cap on top so ledges read clearly against the paper.
+            // A lighter cap on top so ledges read clearly against the paper — and a hot one
+            // when the ink is deadly, so it never invites a landing.
             drawRect(
-                color = Color(0xFF4A4238),
+                color = cap,
                 topLeft = Offset(rect.x, rect.y),
                 size = Size(rect.width, min(0.14f * styleScale, rect.height * 0.4f)),
             )

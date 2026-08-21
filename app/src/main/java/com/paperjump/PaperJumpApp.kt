@@ -30,11 +30,15 @@ object Routes {
 }
 
 /**
- * home → (draw | photograph | library) → tune → mode → play.
+ * home → (draw | photograph | library) → **choose a game** → play.
+ *
+ * Choosing the game comes straight after making a level, because that is the interesting
+ * decision; the tuning screen is a detour off it for when the detector misread something,
+ * rather than a step everybody has to walk through to reach their level.
  *
  * The bitmap and the detected level live in [SketchGameViewModel] rather than in navigation
  * arguments: a `Bitmap` is far too big for a saved-state bundle, and keeping it there means
- * stepping back from the game to the mode picker does not re-run the detector.
+ * stepping back from the game to the game picker does not re-run the detector.
  */
 @Composable
 fun PaperJumpApp(
@@ -63,7 +67,7 @@ fun PaperJumpApp(
                 controller = viewModel.drawingController,
                 onPlay = { document, aspect ->
                     viewModel.onDrawingFinished(document, aspect)
-                    navController.navigate(Routes.TUNE)
+                    navController.navigate(Routes.MODE)
                 },
                 onBack = { navController.popBackStack() },
             )
@@ -73,7 +77,7 @@ fun PaperJumpApp(
             CameraScreen(
                 onSketchSelected = { bitmap, source ->
                     viewModel.onSketchCaptured(bitmap, source)
-                    navController.navigate(Routes.TUNE)
+                    navController.navigate(Routes.MODE)
                 },
                 onBack = { navController.popBackStack() },
             )
@@ -122,29 +126,33 @@ fun PaperJumpApp(
                 isSaved = viewModel.currentSavedId != null,
                 onConfigChange = viewModel::updateConfig,
                 onSave = viewModel::saveCurrentLevel,
-                onRetake = {
-                    viewModel.clearSketch()
-                    navController.popBackStack()
-                },
-                onContinue = { navController.navigate(Routes.MODE) },
+                onRetake = { navController.popBackStack() },
+                onContinue = { navController.popBackStack() },
             )
         }
 
         composable(Routes.MODE) {
-            val level = viewModel.level
-            if (level == null) {
-                ReturnHome(navController)
-            } else {
-                ModeSelectScreen(
-                    level = level,
-                    recordFor = viewModel::recordFor,
-                    onPlay = { mode ->
-                        viewModel.selectMode(mode)
-                        navController.navigate(Routes.GAME)
-                    },
-                    onBack = { navController.popBackStack() },
-                )
-            }
+            ModeSelectScreen(
+                // Detection may still be running: this screen is now the first thing shown
+                // after a drawing is finished, so it owns the waiting state.
+                level = viewModel.level,
+                isProcessing = viewModel.isProcessing,
+                errorMessage = viewModel.errorMessage,
+                twist = viewModel.setup.twist,
+                recordFor = viewModel::recordFor,
+                onTwistChange = { twist ->
+                    viewModel.selectSetup(viewModel.setup.copy(twist = twist))
+                },
+                onPlay = { setup ->
+                    viewModel.selectSetup(setup)
+                    navController.navigate(Routes.GAME)
+                },
+                onTune = { navController.navigate(Routes.TUNE) },
+                onBack = {
+                    viewModel.clearSketch()
+                    navController.popBackStack()
+                },
+            )
         }
 
         composable(Routes.GAME) {
@@ -155,14 +163,15 @@ fun PaperJumpApp(
             } else {
                 GameView(
                     level = level,
-                    mode = viewModel.mode,
+                    setup = viewModel.setup,
                     settings = settings,
-                    record = viewModel.recordFor(viewModel.mode),
+                    record = viewModel.recordFor(viewModel.setup),
                     wasPersonalBest = viewModel.lastRunWasBest,
                     onRunFinished = viewModel::onRunFinished,
                     onChangeMode = { navController.popBackStack() },
                     onTune = {
-                        navController.popBackStack(Routes.TUNE, inclusive = false)
+                        navController.popBackStack(Routes.MODE, inclusive = false)
+                        navController.navigate(Routes.TUNE)
                     },
                     onQuit = {
                         navController.popBackStack(Routes.HOME, inclusive = false)

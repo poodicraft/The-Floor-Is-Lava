@@ -17,7 +17,7 @@ import com.paperjump.data.SettingsRepository
 import com.paperjump.draw.DrawingController
 import com.paperjump.draw.DrawingState
 import com.paperjump.draw.StrokeRasterizer
-import com.paperjump.game.GameMode
+import com.paperjump.game.GameSetup
 import com.paperjump.processing.ImageProcessor
 import com.paperjump.processing.LevelData
 import com.paperjump.processing.ProcessingConfig
@@ -58,7 +58,8 @@ class SketchGameViewModel(application: Application) : AndroidViewModel(applicati
     var source: LevelSource by mutableStateOf(LevelSource.PHOTO)
         private set
 
-    var mode: GameMode by mutableStateOf(GameMode.CLASSIC)
+    /** The game and twist chosen for the next run. */
+    var setup: GameSetup by mutableStateOf(GameSetup())
         private set
 
     var isProcessing: Boolean by mutableStateOf(false)
@@ -133,11 +134,11 @@ class SketchGameViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     /**
-     * Not `setMode`: `var mode` already compiles to a `setMode` on the JVM, and a function
-     * of that name would clash with it.
+     * Not `setSetup`: `var setup` already compiles to a `setSetup` on the JVM, and a
+     * function of that name would clash with it.
      */
-    fun selectMode(newMode: GameMode) {
-        mode = newMode
+    fun selectSetup(newSetup: GameSetup) {
+        setup = newSetup
     }
 
     fun clearSketch() {
@@ -250,18 +251,18 @@ class SketchGameViewModel(application: Application) : AndroidViewModel(applicati
     private val levelKey: String?
         get() = level?.let { Integer.toHexString(it.hashCode()) }
 
-    fun recordFor(forMode: GameMode): LevelRecord {
+    fun recordFor(forSetup: GameSetup): LevelRecord {
         val key = levelKey ?: return LevelRecord()
-        return records[RecordKey(key, forMode)] ?: LevelRecord()
+        return records[RecordKey(key, forSetup)] ?: LevelRecord()
     }
 
     /** Folds a finished run into the records and flags a new personal best. */
     fun onRunFinished(won: Boolean, seconds: Float, coins: Int) {
         val key = levelKey ?: return
-        val playedMode = mode
-        lastRunWasBest = won && recordFor(playedMode).isNewBestTime(seconds)
+        val played = setup
+        lastRunWasBest = won && recordFor(played).isNewBestTime(seconds)
         viewModelScope.launch {
-            recordStore.record(key, playedMode, won, seconds, coins)
+            recordStore.record(key, played, won, seconds, coins)
             records = recordStore.all()
         }
     }

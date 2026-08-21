@@ -26,6 +26,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Air
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material3.Button
@@ -53,6 +55,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -90,7 +93,7 @@ import kotlin.math.min
 @Composable
 fun GameView(
     level: LevelData,
-    mode: GameMode,
+    setup: GameSetup,
     settings: AppSettings,
     record: LevelRecord,
     wasPersonalBest: Boolean,
@@ -100,7 +103,8 @@ fun GameView(
     onQuit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val engine = remember(level, mode) { GameEngine(level, mode) }
+    val engine = remember(level, setup) { GameEngine(level, setup) }
+    val mode = setup.mode
     val styleScale = remember(level) { GameRenderer.styleScale(level) }
     val haptics = LocalHapticFeedback.current
 
@@ -181,7 +185,7 @@ fun GameView(
                 withWorld(camera) {
                     drawSpawnMarker(level, time, styleScale)
                     level.goal?.let { drawGoal(it, time, styleScale, locked = engine.isGoalLocked) }
-                    drawPlatforms(level.platforms, styleScale)
+                    drawPlatforms(level.platforms, styleScale, deadly = mode.inkIsDeadly)
                     drawHazards(level.hazards, time, styleScale)
                     drawCoins(
                         level = level,
@@ -211,11 +215,14 @@ fun GameView(
             )
 
             TouchControls(
+                scheme = mode.controls,
                 enabled = hud.status == GameStatus.PLAYING && !isPaused,
                 jumpOnRight = settings.jumpOnRight,
                 scale = settings.controlScale,
                 onLeft = { engine.moveLeft = it },
                 onRight = { engine.moveRight = it },
+                onUp = { engine.moveUp = it },
+                onDown = { engine.moveDown = it },
                 onJump = { pressed ->
                     if (pressed) {
                         engine.pressJump()
@@ -233,6 +240,8 @@ fun GameView(
         val restart = {
             engine.moveLeft = false
             engine.moveRight = false
+            engine.moveUp = false
+            engine.moveDown = false
             engine.restart()
             cameraFocus[0] = engine.playerCenterX
             cameraFocus[1] = engine.playerCenterY
@@ -246,7 +255,7 @@ fun GameView(
         ) {
             ResultOverlay(
                 hud = hud,
-                mode = mode,
+                setup = setup,
                 record = record,
                 wasPersonalBest = wasPersonalBest,
                 onRetry = restart,
@@ -263,7 +272,7 @@ fun GameView(
             modifier = Modifier.align(Alignment.Center),
         ) {
             PauseOverlay(
-                mode = mode,
+                setup = setup,
                 onResume = { isPaused = false },
                 onRestart = {
                     restart()
@@ -375,19 +384,26 @@ private fun HudPill(text: String, accent: Color, label: String) {
     }
 }
 
+/**
+ * The on-screen controls, which differ per game: a maze is steered in four directions, a
+ * runner only jumps, a flyer only flaps.
+ */
 @Composable
 private fun TouchControls(
+    scheme: ControlScheme,
     enabled: Boolean,
     jumpOnRight: Boolean,
     scale: Float,
     onLeft: (Boolean) -> Unit,
     onRight: (Boolean) -> Unit,
+    onUp: (Boolean) -> Unit,
+    onDown: (Boolean) -> Unit,
     onJump: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val moveDiameter = (76 * scale).dp
-    val jumpDiameter = (88 * scale).dp
-    val iconSize = (40 * scale).dp
+    val moveDiameter = (72 * scale).dp
+    val actionDiameter = (88 * scale).dp
+    val iconSize = (38 * scale).dp
 
     // Movement controls are physical, not textual: in an RTL locale the button that moves
     // the player left must still sit on the left and point left.
@@ -399,57 +415,82 @@ private fun TouchControls(
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            val moveCluster: @Composable () -> Unit = {
+            val leftRight: @Composable () -> Unit = {
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    HoldButton(
-                        description = "Move left",
-                        enabled = enabled,
-                        diameter = moveDiameter,
-                        onPressedChange = onLeft,
-                    ) {
-                        Icon(
-                            Icons.Rounded.ChevronLeft,
-                            contentDescription = null,
-                            modifier = Modifier.size(iconSize),
-                        )
+                    HoldButton("Move left", enabled, onLeft, diameter = moveDiameter) {
+                        Icon(Icons.Rounded.ChevronLeft, null, Modifier.size(iconSize))
                     }
-                    HoldButton(
-                        description = "Move right",
-                        enabled = enabled,
-                        diameter = moveDiameter,
-                        onPressedChange = onRight,
-                    ) {
-                        Icon(
-                            Icons.Rounded.ChevronRight,
-                            contentDescription = null,
-                            modifier = Modifier.size(iconSize),
-                        )
+                    HoldButton("Move right", enabled, onRight, diameter = moveDiameter) {
+                        Icon(Icons.Rounded.ChevronRight, null, Modifier.size(iconSize))
                     }
                 }
             }
 
-            val jumpButton: @Composable () -> Unit = {
+            // A cross, so up and down are reachable without hunting for them.
+            val dPad: @Composable () -> Unit = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    HoldButton("Move up", enabled, onUp, diameter = moveDiameter) {
+                        Icon(Icons.Rounded.KeyboardArrowUp, null, Modifier.size(iconSize))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(moveDiameter * 0.18f)) {
+                        HoldButton("Move left", enabled, onLeft, diameter = moveDiameter) {
+                            Icon(Icons.Rounded.ChevronLeft, null, Modifier.size(iconSize))
+                        }
+                        HoldButton("Move right", enabled, onRight, diameter = moveDiameter) {
+                            Icon(Icons.Rounded.ChevronRight, null, Modifier.size(iconSize))
+                        }
+                    }
+                    HoldButton("Move down", enabled, onDown, diameter = moveDiameter) {
+                        Icon(Icons.Rounded.KeyboardArrowDown, null, Modifier.size(iconSize))
+                    }
+                }
+            }
+
+            val actionButton: @Composable (String, ImageVector) -> Unit = { label, icon ->
                 HoldButton(
-                    description = "Jump",
+                    description = label,
                     enabled = enabled,
-                    accent = LavaOrange,
-                    diameter = jumpDiameter,
                     onPressedChange = onJump,
+                    accent = LavaOrange,
+                    diameter = actionDiameter,
                 ) {
-                    Icon(
-                        Icons.Rounded.KeyboardArrowUp,
-                        contentDescription = null,
-                        modifier = Modifier.size(iconSize * 1.1f),
-                    )
+                    Icon(icon, null, Modifier.size(iconSize * 1.1f))
                 }
             }
 
-            if (jumpOnRight) {
-                moveCluster()
-                jumpButton()
-            } else {
-                jumpButton()
-                moveCluster()
+            when (scheme) {
+                ControlScheme.RUN_AND_JUMP -> if (jumpOnRight) {
+                    leftRight()
+                    actionButton("Jump", Icons.Rounded.KeyboardArrowUp)
+                } else {
+                    actionButton("Jump", Icons.Rounded.KeyboardArrowUp)
+                    leftRight()
+                }
+
+                ControlScheme.EIGHT_WAY -> if (jumpOnRight) {
+                    dPad()
+                    Spacer(Modifier.size(moveDiameter))
+                } else {
+                    Spacer(Modifier.size(moveDiameter))
+                    dPad()
+                }
+
+                // One button, so put it under the thumb the player chose and nothing else.
+                ControlScheme.JUMP_ONLY, ControlScheme.FLAP_ONLY -> {
+                    val label = if (scheme == ControlScheme.FLAP_ONLY) "Flap" else "Jump"
+                    val icon = if (scheme == ControlScheme.FLAP_ONLY) {
+                        Icons.Rounded.Air
+                    } else {
+                        Icons.Rounded.KeyboardArrowUp
+                    }
+                    if (jumpOnRight) {
+                        Spacer(Modifier.size(actionDiameter))
+                        actionButton(label, icon)
+                    } else {
+                        actionButton(label, icon)
+                        Spacer(Modifier.size(actionDiameter))
+                    }
+                }
             }
         }
     }
@@ -512,19 +553,19 @@ private fun HoldButton(
 
 @Composable
 private fun PauseOverlay(
-    mode: GameMode,
+    setup: GameSetup,
     onResume: () -> Unit,
     onRestart: () -> Unit,
     onChangeMode: () -> Unit,
     onQuit: () -> Unit,
 ) {
-    OverlayCard(title = "Paused", subtitle = mode.title, accent = Color.White) {
+    OverlayCard(title = "Paused", subtitle = setup.label, accent = Color.White) {
         Button(onClick = onResume, modifier = Modifier.fillMaxWidth()) { Text("Resume") }
         OutlinedButton(onClick = onRestart, modifier = Modifier.fillMaxWidth()) {
             Text("Restart level")
         }
         OutlinedButton(onClick = onChangeMode, modifier = Modifier.fillMaxWidth()) {
-            Text("Change game type")
+            Text("Change game")
         }
         TextButton(onClick = onQuit, modifier = Modifier.fillMaxWidth()) { Text("Quit to menu") }
     }
@@ -533,7 +574,7 @@ private fun PauseOverlay(
 @Composable
 private fun ResultOverlay(
     hud: HudState,
-    mode: GameMode,
+    setup: GameSetup,
     record: LevelRecord,
     wasPersonalBest: Boolean,
     onRetry: () -> Unit,
@@ -543,7 +584,7 @@ private fun ResultOverlay(
 ) {
     val won = hud.status == GameStatus.WON
     OverlayCard(
-        title = if (won) headlineFor(mode) else deathHeadline(hud.deathCause),
+        title = if (won) headlineFor(setup.mode) else deathHeadline(hud.deathCause),
         subtitle = if (won) {
             buildString {
                 append("Coins ${hud.coins}/${hud.totalCoins}")
@@ -577,7 +618,7 @@ private fun ResultOverlay(
             Text(if (won) "Play again" else "Try again")
         }
         OutlinedButton(onClick = onChangeMode, modifier = Modifier.fillMaxWidth()) {
-            Text("Change game type")
+            Text("Change game")
         }
         TextButton(onClick = onTune, modifier = Modifier.fillMaxWidth()) { Text("Tune this level") }
         TextButton(onClick = onQuit, modifier = Modifier.fillMaxWidth()) { Text("Quit to menu") }
@@ -620,16 +661,17 @@ private fun OverlayCard(
 }
 
 private fun headlineFor(mode: GameMode): String = when (mode) {
-    GameMode.CLASSIC -> "Level complete!"
-    GameMode.COIN_HUNT -> "Every coin, and out!"
-    GameMode.TIME_ATTACK -> "Made it in time!"
-    GameMode.RISING_LAVA -> "Out before the flood!"
+    GameMode.PLATFORMER -> "Level complete!"
+    GameMode.MAZE -> "Out of the maze!"
+    GameMode.FLYER -> "Flew it clean!"
+    GameMode.RUNNER -> "Ran it to the end!"
 }
 
 private fun deathHeadline(cause: DeathCause): String = when (cause) {
     DeathCause.TIME_UP -> "Out of time"
     DeathCause.FLOODED -> "Swallowed by the lava"
     DeathCause.FELL -> "Off the page"
+    DeathCause.CRASHED -> "Crashed"
     else -> "Burnt to a crisp"
 }
 
@@ -637,5 +679,7 @@ private fun deathExplanation(cause: DeathCause): String = when (cause) {
     DeathCause.TIME_UP -> "The clock ran out before you reached the flag."
     DeathCause.FLOODED -> "The rising lava caught up with you. Keep climbing."
     DeathCause.FELL -> "You fell off the bottom of the page."
+    DeathCause.CRASHED -> "You hit the ink. Out here it is scenery to steer around, " +
+        "not something to land on."
     else -> "You touched the lava."
 }

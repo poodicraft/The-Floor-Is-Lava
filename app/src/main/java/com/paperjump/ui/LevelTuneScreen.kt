@@ -200,13 +200,31 @@ fun LevelTuneScreen(
             onValueChange = { onConfigChange(config.copy(gridCols = it.roundToInt())) },
         )
 
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Switch(
+                checked = config.straightenLines,
+                onCheckedChange = { onConfigChange(config.copy(straightenLines = it)) },
+            )
+            Column {
+                Text("Straighten wobbly lines", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "Snaps nearly-level lines flat. Deliberate slopes are left alone.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
         Button(
             onClick = onContinue,
             enabled = level != null,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Icon(Icons.Rounded.PlayArrow, contentDescription = null)
-            Text("  Choose a game type")
+            Text("  Back to the games")
         }
 
         OutlinedButton(

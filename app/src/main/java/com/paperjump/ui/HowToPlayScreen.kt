@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.paperjump.game.GameMode
+import com.paperjump.game.Twist
 import com.paperjump.ui.components.ScreenHeader
 import com.paperjump.ui.components.SectionLabel
 import com.paperjump.ui.theme.CoinGold
@@ -54,13 +55,46 @@ fun HowToPlayScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                 LegendRow(SkyBlue, "Blue", "The flag — reach it to win")
             }
 
-            SectionLabel("Game types")
+            SectionLabel("The games")
             Card {
+                Text(
+                    text = "One drawing, four games. They are not variations on each " +
+                        "other — what moves you, what the lines mean and even the buttons " +
+                        "change.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
                 GameMode.entries.forEach { mode ->
                     Column(modifier = Modifier.padding(vertical = 6.dp)) {
                         Text(mode.title, style = MaterialTheme.typography.titleMedium)
                         Text(
                             text = mode.blurb,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = "Your lines: ${mode.inkMeaning.lowercase()}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+            }
+
+            SectionLabel("Twists")
+            Card {
+                Text(
+                    text = "Any twist can be added to any game.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+                Twist.entries.filter { it != Twist.NONE }.forEach { twist ->
+                    Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                        Text(twist.title, style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            text = twist.blurb,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -70,8 +104,9 @@ fun HowToPlayScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
 
             SectionLabel("Controls")
             Card {
-                Bullet("Hold left or right to run.")
-                Bullet("Tap jump for a small hop, hold it for a full jump.")
+                Bullet("Platformer: hold left or right to run; tap jump for a small hop, hold it for a full jump.")
+                Bullet("Maze: a four-way pad, because there is no gravity to fall back on.")
+                Bullet("Flyer and Runner: one button. Everything else is decided for you.")
                 Bullet("You can still jump for a moment after stepping off a ledge, and a jump pressed just before landing still counts.")
                 Bullet("Button size and which side jump sits on are in Settings.")
             }
@@ -82,7 +117,9 @@ fun HowToPlayScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                 Bullet("Photograph the page straight on, filling the frame, with even light and no shadow across it.")
                 Bullet("A jump clears about a quarter of the page's width and a fifth of its height. Gaps wider than that cannot be crossed.")
                 Bullet("Colour dots need to be a few cells across — a tiny speck is treated as noise on purpose.")
-                Bullet("If the detector reads something wrong, the tuning screen's sliders will usually fix it.")
+                Bullet("Drawing the green start dot on a platform is fine — the ground is rebuilt underneath it.")
+                Bullet("Lines meant to be level are straightened automatically; a deliberate slope is kept.")
+                Bullet("If the detector reads something wrong, \"Adjust the reading\" on the game screen will usually fix it.")
             }
 
             Spacer(Modifier.height(24.dp))

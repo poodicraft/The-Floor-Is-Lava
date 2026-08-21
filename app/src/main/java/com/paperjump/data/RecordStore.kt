@@ -1,7 +1,7 @@
 package com.paperjump.data
 
 import android.content.Context
-import com.paperjump.game.GameMode
+import com.paperjump.game.GameSetup
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -25,18 +25,18 @@ class RecordStore(context: Context) {
         }
     }
 
-    suspend fun recordFor(levelKey: String, mode: GameMode): LevelRecord =
-        all()[RecordKey(levelKey, mode)] ?: LevelRecord()
+    suspend fun recordFor(levelKey: String, setup: GameSetup): LevelRecord =
+        all()[RecordKey(levelKey, setup)] ?: LevelRecord()
 
     /** Folds a finished run in and persists. Returns the record as it now stands. */
     suspend fun record(
         levelKey: String,
-        mode: GameMode,
+        setup: GameSetup,
         won: Boolean,
         timeSeconds: Float,
         coins: Int,
     ): LevelRecord {
-        val key = RecordKey(levelKey, mode)
+        val key = RecordKey(levelKey, setup)
         val updated = (all()[key] ?: LevelRecord()).after(won, timeSeconds, coins)
         val merged = all() + (key to updated)
         cache = merged

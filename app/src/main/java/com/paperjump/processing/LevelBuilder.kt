@@ -22,6 +22,8 @@ data class ProcessingConfig(
     val inkSensitivity: Float = 0f,
     val colorSensitivity: Float = 0f,
     val minBlobCells: Int = 3,
+    /** Snap nearly-straight runs of ink to exactly straight platforms. */
+    val straightenLines: Boolean = true,
 ) {
     companion object {
         const val MIN_GRID_COLS = 40
@@ -57,6 +59,13 @@ object LevelBuilder {
     /** Cells lit dimmer than this can never be a colour (a shadow is not a marker). */
     private const val MIN_COLOR_VALUE = 46
 
+    /** How colourful a pixel has to be before it counts as a marker rather than ink. */
+    internal fun minChromaFor(config: ProcessingConfig): Float =
+        (72f - config.colorSensitivity * 34f).coerceIn(28f, 120f)
+
+    internal fun minSaturationFor(config: ProcessingConfig): Float =
+        (0.34f - config.colorSensitivity * 0.14f).coerceIn(0.14f, 0.6f)
+
     fun build(
         pixels: IntArray,
         width: Int,
@@ -71,9 +80,10 @@ object LevelBuilder {
             .roundToInt()
             .coerceIn(16, 240)
 
-        val grid = downsample(pixels, width, height, cols, rows)
-        val inkThreshold = otsuThreshold(grid.darkness) + config.inkSensitivity * 45f
-        val cells = classify(grid, cols, rows, inkThreshold.coerceIn(18f, 226f), config)
+        val grid = downsample(pixels, width, height, cols, rows, minChromaFor(config))
+        val inkThreshold = (otsuThreshold(grid.darkness) + config.inkSensitivity * 45f)
+            .coerceIn(18f, 226f)
+        val cells = classify(grid, cols, rows, inkThreshold, config)
 
         despeckleInk(cells, cols, rows)
         val blobs = findBlobs(cells, cols, rows)
@@ -81,7 +91,18 @@ object LevelBuilder {
 
         val warnings = mutableListOf<String>()
 
-        val solid = BooleanArray(cells.size) { cells[it] == CellType.SOLID }
+        // A cell can be both "ink" and "a marker": that is what drawing the start dot on
+        // top of a platform looks like. Ground has to survive underneath the mark, or the
+        // mark punches a hole in the platform and the player falls through the floor.
+        val inkUnder = BooleanArray(cells.size) { grid.darkness[it] <= inkThreshold }
+        val solid = BooleanArray(cells.size) { index ->
+            when (cells[index]) {
+                CellType.SOLID -> true
+                // Lava is deliberately not solid: you die in it rather than stand on it.
+                CellType.SPAWN, CellType.COIN, CellType.GOAL -> inkUnder[index]
+                else -> false
+            }
+        }
         val hazard = BooleanArray(cells.size) { cells[it] == CellType.HAZARD }
 
         if (solid.count { it } == 0) {
@@ -93,6 +114,13 @@ object LevelBuilder {
             warnings += "Most of the photo reads as ink. Lower the line sensitivity or " +
                 "retake the photo with more even lighting."
         }
+
+        // A mark is opaque: drawing the start dot on a platform hides the ink underneath
+        // it, so the ground has to be reconnected across the mark before anything else
+        // looks at the shape of the level.
+        bridgeMarks(solid, cells, cols, rows)
+
+        if (config.straightenLines) straightenLines(solid, cols, rows)
 
         val platforms = mergeRects(solid, cols, rows)
         val hazardRects = mergeRects(hazard, cols, rows)
@@ -168,6 +196,7 @@ object LevelBuilder {
         height: Int,
         cols: Int,
         rows: Int,
+        inkChromaLimit: Float = 72f,
     ): CellSummary {
         val out = CellSummary(cols * rows)
         for (row in 0 until rows) {
@@ -191,12 +220,15 @@ object LevelBuilder {
                         val g = (p shr 8) and 0xFF
                         val b = p and 0xFF
 
-                        val luma = (r * 77 + g * 151 + b * 28) shr 8
-                        if (luma < darkest) darkest = luma
-
                         val maxC = max(r, max(g, b))
                         val minC = min(r, min(g, b))
                         val chroma = maxC - minC
+
+                        // Darkness means *ink* darkness, so a saturated marker colour does
+                        // not count: a green start dot on white paper is not a platform,
+                        // while the black line it was drawn over still is.
+                        val luma = (r * 77 + g * 151 + b * 28) shr 8
+                        if (luma < darkest && chroma < inkChromaLimit) darkest = luma
                         // Prefer strong colour, but never let a near-black pixel win: its hue
                         // is meaningless and would poison the classification.
                         if (chroma > bestChroma && maxC >= MIN_COLOR_VALUE) {
@@ -279,8 +311,8 @@ object LevelBuilder {
         inkThreshold: Float,
         config: ProcessingConfig,
     ): Array<CellType> {
-        val minChroma = (72f - config.colorSensitivity * 34f).coerceIn(28f, 120f)
-        val minSaturation = (0.34f - config.colorSensitivity * 0.14f).coerceIn(0.14f, 0.6f)
+        val minChroma = minChromaFor(config)
+        val minSaturation = minSaturationFor(config)
 
         return Array(cols * rows) { index ->
             val isColored = grid.chroma[index] >= minChroma &&
@@ -316,6 +348,196 @@ object LevelBuilder {
         val diff = abs(a - b) % 360f
         return min(diff, 360f - diff)
     }
+
+    // ---------------------------------------------------------------- marks over ink
+
+    private fun CellType.isMark(): Boolean =
+        this == CellType.SPAWN || this == CellType.COIN || this == CellType.GOAL
+
+    /**
+     * Restores ground that a marker colour painted over.
+     *
+     * Drawing the green start dot on a platform — the obvious place to put it — used to
+     * punch a hole clean through that platform, because the dot's cells classify as spawn
+     * rather than ink and the player then fell through the floor on the first frame.
+     *
+     * A mark cell is filled back in only when the ink resumes on **both** sides at the same
+     * row (or column), crossing nothing but more of the same mark. That reconstructs the
+     * line the mark was drawn over, while a coin floating in mid-air between two platforms
+     * has paper beside it, finds no support, and stays empty.
+     */
+    internal fun bridgeMarks(
+        solid: BooleanArray,
+        cells: Array<CellType>,
+        cols: Int,
+        rows: Int,
+    ) {
+        val restored = mutableListOf<Int>()
+        for (row in 0 until rows) {
+            for (col in 0 until cols) {
+                val index = row * cols + col
+                if (solid[index] || !cells[index].isMark()) continue
+                val supported = isBridged(solid, cells, cols, rows, col, row, horizontal = true) ||
+                    isBridged(solid, cells, cols, rows, col, row, horizontal = false)
+                if (supported) restored += index
+            }
+        }
+        // Applied afterwards so one restored cell cannot act as support for the next and
+        // let a bridge grow indefinitely across the page.
+        restored.forEach { solid[it] = true }
+    }
+
+    private fun isBridged(
+        solid: BooleanArray,
+        cells: Array<CellType>,
+        cols: Int,
+        rows: Int,
+        col: Int,
+        row: Int,
+        horizontal: Boolean,
+    ): Boolean {
+        fun probe(step: Int): Boolean {
+            var c = col
+            var r = row
+            repeat(MAX_BRIDGE_CELLS) {
+                if (horizontal) c += step else r += step
+                if (c !in 0 until cols || r !in 0 until rows) return false
+                val index = r * cols + c
+                if (solid[index]) return true
+                if (!cells[index].isMark()) return false
+            }
+            return false
+        }
+        return probe(1) && probe(-1)
+    }
+
+    /** How wide a mark can be and still have the ground rebuilt under it. */
+    private const val MAX_BRIDGE_CELLS = 14
+
+    // ---------------------------------------------------------------- straightening
+
+    /**
+     * Snaps *nearly* straight runs of ink to exactly straight bars.
+     *
+     * Nobody draws a level line straight by hand, and the wobble is not a feature: a
+     * platform that sags by a cell reads as a bug, and a slightly tilted one turns into a
+     * staircase the player trips up. This flattens a run that was clearly *meant* to be
+     * straight while leaving a deliberate ramp alone — the difference being how far the
+     * line drifts over its own length.
+     */
+    internal fun straightenLines(solid: BooleanArray, cols: Int, rows: Int) {
+        val components = solidComponents(solid, cols, rows)
+        components.forEach { component ->
+            straightenComponent(component, solid, cols, rows, horizontal = true) ||
+                straightenComponent(component, solid, cols, rows, horizontal = false)
+        }
+    }
+
+    /** One connected run of ink, as the cell indices it occupies. */
+    private fun solidComponents(solid: BooleanArray, cols: Int, rows: Int): List<List<Int>> {
+        val seen = BooleanArray(solid.size)
+        val components = mutableListOf<List<Int>>()
+        val stack = ArrayDeque<Int>()
+
+        for (start in solid.indices) {
+            if (!solid[start] || seen[start]) continue
+            val cells = mutableListOf<Int>()
+            stack.addLast(start)
+            seen[start] = true
+            while (stack.isNotEmpty()) {
+                val index = stack.removeLast()
+                cells += index
+                val col = index % cols
+                val row = index / cols
+                for (dRow in -1..1) {
+                    for (dCol in -1..1) {
+                        if (dRow == 0 && dCol == 0) continue
+                        val c = col + dCol
+                        val r = row + dRow
+                        if (c !in 0 until cols || r !in 0 until rows) continue
+                        val next = r * cols + c
+                        if (solid[next] && !seen[next]) {
+                            seen[next] = true
+                            stack.addLast(next)
+                        }
+                    }
+                }
+            }
+            components += cells
+        }
+        return components
+    }
+
+    /**
+     * Flattens one component along the given axis, returning whether it did.
+     *
+     * The guards matter more than the flattening: applied carelessly this would bulldoze
+     * a drawing's structure into bars. A run is only straightened when it is long, thin,
+     * unbroken, and drifts across its length by less than [MAX_STRAIGHTEN_SLOPE].
+     */
+    private fun straightenComponent(
+        component: List<Int>,
+        solid: BooleanArray,
+        cols: Int,
+        rows: Int,
+        horizontal: Boolean,
+    ): Boolean {
+        // Along = the axis the line runs down; across = its thickness.
+        fun along(index: Int) = if (horizontal) index % cols else index / cols
+        fun across(index: Int) = if (horizontal) index / cols else index % cols
+
+        val minAlong = component.minOf(::along)
+        val maxAlong = component.maxOf(::along)
+        val length = maxAlong - minAlong + 1
+        if (length < MIN_STRAIGHTEN_LENGTH) return false
+
+        val minAcross = component.minOf(::across)
+        val maxAcross = component.maxOf(::across)
+        val breadth = maxAcross - minAcross + 1
+        if (breadth >= length) return false
+
+        // Mean position across the line, per step along it. A gap means this is not one
+        // continuous run and flattening it would invent ink that was never drawn.
+        val sums = IntArray(length)
+        val counts = IntArray(length)
+        component.forEach { index ->
+            val slot = along(index) - minAlong
+            sums[slot] += across(index)
+            counts[slot]++
+        }
+        if (counts.any { it == 0 }) return false
+
+        val thickness = counts.sorted()[counts.size / 2]
+        if (thickness > MAX_STRAIGHTEN_THICKNESS) return false
+        if (counts.max() > thickness * 3 + 2) return false
+
+        val spine = FloatArray(length) { sums[it].toFloat() / counts[it] }
+        val drift = spine.max() - spine.min()
+        if (drift > length * MAX_STRAIGHTEN_SLOPE) return false
+
+        val centre = (spine.average() - (thickness - 1) / 2.0).roundToInt()
+        val top = centre.coerceIn(0, (if (horizontal) rows else cols) - thickness)
+
+        component.forEach { solid[it] = false }
+        for (step in 0 until length) {
+            for (offset in 0 until thickness) {
+                val a = minAlong + step
+                val b = top + offset
+                val index = if (horizontal) b * cols + a else a * cols + b
+                if (index in solid.indices) solid[index] = true
+            }
+        }
+        return true
+    }
+
+    /** Runs shorter than this are dots and corners, not platforms. */
+    private const val MIN_STRAIGHTEN_LENGTH = 6
+
+    /** Anything fatter is a filled shape, not a line. */
+    private const val MAX_STRAIGHTEN_THICKNESS = 6
+
+    /** ~12°: a hand wobble gets flattened, a ramp somebody meant to draw does not. */
+    private const val MAX_STRAIGHTEN_SLOPE = 0.22f
 
     // ---------------------------------------------------------------- denoising
 

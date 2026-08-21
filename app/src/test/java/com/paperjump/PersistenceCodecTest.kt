@@ -7,6 +7,8 @@ import com.paperjump.data.RecordCodec
 import com.paperjump.data.RecordKey
 import com.paperjump.data.SavedLevelMeta
 import com.paperjump.game.GameMode
+import com.paperjump.game.GameSetup
+import com.paperjump.game.Twist
 import com.paperjump.processing.ProcessingConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -81,18 +83,36 @@ class PersistenceCodecTest {
     @Test
     fun `records survive a round trip`() {
         val records = mapOf(
-            RecordKey("aaaa", GameMode.CLASSIC) to LevelRecord(plays = 7, wins = 3, bestTimeSeconds = 12.5f, bestCoins = 4),
-            RecordKey("aaaa", GameMode.RISING_LAVA) to LevelRecord(plays = 2, wins = 0, bestTimeSeconds = null, bestCoins = 1),
+            RecordKey("aaaa", GameSetup(GameMode.PLATFORMER, Twist.NONE)) to LevelRecord(plays = 7, wins = 3, bestTimeSeconds = 12.5f, bestCoins = 4),
+            RecordKey("aaaa", GameSetup(GameMode.FLYER, Twist.RISING_LAVA)) to LevelRecord(plays = 2, wins = 0, bestTimeSeconds = null, bestCoins = 1),
         )
         assertEquals(records, RecordCodec.decode(RecordCodec.encode(records)))
     }
 
     @Test
     fun `one corrupt row does not lose the rest of the file`() {
-        val good = mapOf(RecordKey("bbbb", GameMode.COIN_HUNT) to LevelRecord(plays = 1, wins = 1, bestTimeSeconds = 9f))
+        val good = mapOf(RecordKey("bbbb", GameSetup(GameMode.MAZE, Twist.COIN_HUNT)) to LevelRecord(plays = 1, wins = 1, bestTimeSeconds = 9f))
         val text = "this row is broken\n" + RecordCodec.encode(good) + "\nalso\tbroken\n"
 
         assertEquals(good, RecordCodec.decode(text))
+    }
+
+    @Test
+    fun `the same level keeps a separate best for each game and twist`() {
+        val plain = RecordKey("cccc", GameSetup(GameMode.PLATFORMER, Twist.NONE))
+        val timed = RecordKey("cccc", GameSetup(GameMode.PLATFORMER, Twist.TIME_ATTACK))
+        val maze = RecordKey("cccc", GameSetup(GameMode.MAZE, Twist.NONE))
+        val records = mapOf(
+            plain to LevelRecord(plays = 1, wins = 1, bestTimeSeconds = 5f),
+            timed to LevelRecord(plays = 4, wins = 2, bestTimeSeconds = 8f),
+            maze to LevelRecord(plays = 2, wins = 1, bestTimeSeconds = 20f),
+        )
+        val decoded = RecordCodec.decode(RecordCodec.encode(records))
+
+        assertEquals(3, decoded.size)
+        assertEquals(5f, decoded[plain]!!.bestTimeSeconds!!, 0.001f)
+        assertEquals(8f, decoded[timed]!!.bestTimeSeconds!!, 0.001f)
+        assertEquals(20f, decoded[maze]!!.bestTimeSeconds!!, 0.001f)
     }
 
     @Test

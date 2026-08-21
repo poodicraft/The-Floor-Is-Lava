@@ -3,7 +3,10 @@ package com.paperjump
 import com.paperjump.game.DeathCause
 import com.paperjump.game.GameEngine
 import com.paperjump.game.GameMode
+import com.paperjump.game.GameSetup
+import com.paperjump.game.Twist
 import com.paperjump.game.GameStatus
+import com.paperjump.game.Tuning
 import com.paperjump.processing.Coin
 import com.paperjump.processing.LevelData
 import com.paperjump.processing.LevelRect
@@ -63,10 +66,10 @@ class GameModeTest {
     // ---- classic ------------------------------------------------------------------
 
     @Test
-    fun `classic mode has no clock and no flood`() {
-        val engine = GameEngine(room(), GameMode.CLASSIC)
-        assertNull("classic must not be timed", engine.timeRemaining)
-        assertNull("classic must not flood", engine.lavaSurfaceY)
+    fun `a plain run has no clock and no flood`() {
+        val engine = GameEngine(room(), GameSetup(GameMode.PLATFORMER, Twist.NONE))
+        assertNull("an untwisted run must not be timed", engine.timeRemaining)
+        assertNull("an untwisted run must not flood", engine.lavaSurfaceY)
         assertFalse(engine.isGoalLocked)
 
         engine.run(30f)
@@ -79,7 +82,7 @@ class GameModeTest {
     fun `coin hunt keeps the goal shut until every coin is collected`() {
         val coin = Coin(index = 0, center = Vec2(18f, floorRow - 0.5f), radius = 0.4f)
         val goal = LevelRect(9f, floorRow - 3f, 2f, 3f)
-        val engine = GameEngine(room(coins = listOf(coin), goal = goal), GameMode.COIN_HUNT)
+        val engine = GameEngine(room(coins = listOf(coin), goal = goal), GameSetup(twist = Twist.COIN_HUNT))
 
         assertTrue("the goal starts locked", engine.isGoalLocked)
 
@@ -102,9 +105,9 @@ class GameModeTest {
     }
 
     @Test
-    fun `coin hunt on a level with no coins behaves like classic`() {
+    fun `coin hunt on a level with no coins opens immediately`() {
         val goal = LevelRect(9f, floorRow - 3f, 2f, 3f)
-        val engine = GameEngine(room(goal = goal), GameMode.COIN_HUNT)
+        val engine = GameEngine(room(goal = goal), GameSetup(twist = Twist.COIN_HUNT))
         assertFalse(engine.isGoalLocked)
 
         engine.moveRight = true
@@ -116,7 +119,7 @@ class GameModeTest {
 
     @Test
     fun `time attack counts down and kills at zero`() {
-        val engine = GameEngine(room(), GameMode.TIME_ATTACK)
+        val engine = GameEngine(room(), GameSetup(twist = Twist.TIME_ATTACK))
         val limit = engine.timeRemaining
         assertNotNull("time attack must be timed", limit)
 
@@ -133,7 +136,7 @@ class GameModeTest {
     @Test
     fun `reaching the goal in time still wins`() {
         val goal = LevelRect(9f, floorRow - 3f, 2f, 3f)
-        val engine = GameEngine(room(goal = goal), GameMode.TIME_ATTACK)
+        val engine = GameEngine(room(goal = goal), GameSetup(twist = Twist.TIME_ATTACK))
         engine.moveRight = true
         engine.run(2f)
         assertEquals(GameStatus.WON, engine.status)
@@ -151,7 +154,7 @@ class GameModeTest {
                 // Scaled exactly, so the two levels really are the same drawing.
                 spawn = Vec2(2.5f * factor, 10.5f * factor),
             )
-            return GameMode.TIME_ATTACK.rulesFor(level).timeLimitSeconds!!
+            return Twist.TIME_ATTACK.rulesFor(level, Tuning.forLevel(level)).timeLimitSeconds!!
         }
 
         val coarse = limitFor(1)
@@ -164,7 +167,7 @@ class GameModeTest {
 
     @Test
     fun `rising lava waits, then floods the page`() {
-        val engine = GameEngine(room(), GameMode.RISING_LAVA)
+        val engine = GameEngine(room(), GameSetup(twist = Twist.RISING_LAVA))
         val start = engine.lavaSurfaceY
         assertNotNull(start)
         assertTrue("the flood starts off the bottom of the page", start!! > engine.level.height)
@@ -186,7 +189,7 @@ class GameModeTest {
     fun `the flood crosses the page at the same rate however finely it was sampled`() {
         fun secondsToCross(factor: Int): Float {
             val level = room(factor = factor)
-            val speed = GameMode.RISING_LAVA.rulesFor(level).risingLavaSpeed!!
+            val speed = Twist.RISING_LAVA.rulesFor(level, Tuning.forLevel(level)).risingLavaSpeed!!
             return level.height / speed
         }
         assertEquals(secondsToCross(1), secondsToCross(4), 0.01f)
@@ -219,7 +222,7 @@ class GameModeTest {
 
     @Test
     fun `restart rewinds the clock and the flood`() {
-        val timed = GameEngine(room(), GameMode.TIME_ATTACK)
+        val timed = GameEngine(room(), GameSetup(twist = Twist.TIME_ATTACK))
         val limit = timed.timeRemaining!!
         timed.run(5f)
         assertTrue(timed.timeRemaining!! < limit)
@@ -227,7 +230,7 @@ class GameModeTest {
         assertEquals(limit, timed.timeRemaining!!, 0.001f)
         assertEquals(DeathCause.NONE, timed.deathCause)
 
-        val flooded = GameEngine(room(), GameMode.RISING_LAVA)
+        val flooded = GameEngine(room(), GameSetup(twist = Twist.RISING_LAVA))
         val start = flooded.lavaSurfaceY!!
         flooded.run(20f)
         assertTrue(flooded.lavaSurfaceY!! < start)

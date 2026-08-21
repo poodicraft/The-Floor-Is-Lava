@@ -1,6 +1,8 @@
 package com.paperjump.data
 
 import com.paperjump.game.GameMode
+import com.paperjump.game.GameSetup
+import com.paperjump.game.Twist
 
 /**
  * Per-level, per-mode personal bests, and their on-disk encoding.
@@ -37,8 +39,8 @@ data class LevelRecord(
         bestTimeSeconds == null || timeSeconds < bestTimeSeconds
 }
 
-/** Identifies one level-and-mode pairing. */
-data class RecordKey(val levelKey: String, val mode: GameMode)
+/** Identifies one level played one particular way. */
+data class RecordKey(val levelKey: String, val setup: GameSetup)
 
 /** Tab-separated lines; see [LevelMetaCodec] for why this is not JSON. */
 object RecordCodec {
@@ -50,7 +52,8 @@ object RecordCodec {
             appendLine(
                 listOf(
                     key.levelKey,
-                    key.mode.name,
+                    key.setup.mode.name,
+                    key.setup.twist.name,
                     record.plays,
                     record.wins,
                     record.bestTimeSeconds?.toString() ?: NO_TIME,
@@ -64,14 +67,15 @@ object RecordCodec {
         text.lineSequence()
             .mapNotNull { line ->
                 val parts = line.split('\t')
-                if (parts.size < 6) return@mapNotNull null
+                if (parts.size < 7) return@mapNotNull null
                 val mode = GameMode.entries.firstOrNull { it.name == parts[1] } ?: return@mapNotNull null
-                val plays = parts[2].toIntOrNull() ?: return@mapNotNull null
-                val wins = parts[3].toIntOrNull() ?: return@mapNotNull null
-                val best = if (parts[4] == NO_TIME) null else parts[4].toFloatOrNull()
-                val coins = parts[5].toIntOrNull() ?: return@mapNotNull null
+                val twist = Twist.entries.firstOrNull { it.name == parts[2] } ?: return@mapNotNull null
+                val plays = parts[3].toIntOrNull() ?: return@mapNotNull null
+                val wins = parts[4].toIntOrNull() ?: return@mapNotNull null
+                val best = if (parts[5] == NO_TIME) null else parts[5].toFloatOrNull()
+                val coins = parts[6].toIntOrNull() ?: return@mapNotNull null
 
-                RecordKey(parts[0], mode) to LevelRecord(plays, wins, best, coins)
+                RecordKey(parts[0], GameSetup(mode, twist)) to LevelRecord(plays, wins, best, coins)
             }
             .toMap()
 
