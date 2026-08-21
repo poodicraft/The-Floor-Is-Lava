@@ -227,7 +227,7 @@ object GameRenderer {
     }
 
     /**
-     * The flood in [com.paperjump.game.GameMode.RISING_LAVA].
+     * The flood under [com.paperjump.game.Twist.RISING_LAVA].
      *
      * Drawn across the whole page rather than only the visible slice: the surface is a
      * single horizontal line, so there is nothing to gain from clipping it, and the wave

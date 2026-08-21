@@ -208,7 +208,7 @@ fun GameView(
         ) {
             GameHud(
                 hud = hud,
-                mode = mode,
+                setup = setup,
                 showTimer = settings.showTimer,
                 onPause = { isPaused = true },
                 modifier = Modifier.fillMaxWidth(),
@@ -326,7 +326,7 @@ data class HudState(
 @Composable
 private fun GameHud(
     hud: HudState,
-    mode: GameMode,
+    setup: GameSetup,
     showTimer: Boolean,
     onPause: () -> Unit,
     modifier: Modifier = Modifier,
@@ -340,7 +340,9 @@ private fun GameHud(
             Icon(Icons.Rounded.Pause, contentDescription = "Pause", tint = Color.White)
         }
 
-        if (hud.totalCoins > 0 || mode == GameMode.COIN_HUNT) {
+        // Coin hunt always shows the counter, even at 0/0, because the flag's lock
+        // depends on it.
+        if (hud.totalCoins > 0 || setup.twist == Twist.COIN_HUNT) {
             HudPill(
                 text = "${hud.coins}/${hud.totalCoins}",
                 accent = if (hud.goalLocked) CoinGold else SpringGreen,
