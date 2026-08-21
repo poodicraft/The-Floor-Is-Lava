@@ -83,6 +83,14 @@ class LevelStore(context: Context) {
             BitmapFactory.decodeFile(file.absolutePath, options)
         }
 
+    /** Rewrites just the tuning of an already-saved level, leaving its image and name. */
+    suspend fun updateConfig(id: String, config: ProcessingConfig): Unit = withContext(Dispatchers.IO) {
+        val file = metaFile(id)
+        val existing = runCatching { LevelMetaCodec.decode(file.readText()) }.getOrNull() ?: return@withContext
+        if (existing.config == config) return@withContext
+        file.writeText(LevelMetaCodec.encode(existing.copy(config = config)))
+    }
+
     suspend fun rename(id: String, name: String): Unit = withContext(Dispatchers.IO) {
         val file = metaFile(id)
         val existing = runCatching { LevelMetaCodec.decode(file.readText()) }.getOrNull() ?: return@withContext

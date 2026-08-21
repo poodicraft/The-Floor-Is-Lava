@@ -1,7 +1,6 @@
 package com.paperjump.ui
 
 import android.graphics.Bitmap
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -48,9 +47,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.paperjump.game.GameRenderer
 import com.paperjump.processing.LevelData
 import com.paperjump.processing.ProcessingConfig
+import com.paperjump.ui.components.LevelPreview
 import kotlin.math.roundToInt
 
 /**
@@ -118,7 +117,7 @@ fun LevelTuneScreen(
                 }
                 if (level != null) {
                     val overlaid = showPhoto && sketch != null
-                    LevelPreviewCanvas(
+                    LevelPreview(
                         level = level,
                         showPaper = !overlaid,
                         modifier = Modifier
@@ -237,7 +236,7 @@ fun LevelTuneScreen(
                 contentDescription = null,
                 modifier = Modifier.size(18.dp),
             )
-            Text(if (isSaved) "  Update in my levels" else "  Save to my levels")
+            Text(if (isSaved) "  Rename in my levels" else "  Save to my levels")
         }
     }
 
@@ -259,11 +258,11 @@ private fun SaveLevelDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) 
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Save this level") },
+        title = { Text("Name this level") },
         text = {
             Column {
                 Text(
-                    text = "It will appear in My levels, ready to play again.",
+                    text = "It is already in My levels — this just gives it a better name.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -280,29 +279,6 @@ private fun SaveLevelDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) 
         confirmButton = { TextButton(onClick = { onConfirm(name) }) { Text("Save") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
-}
-
-/** Draws the detected level with the game's own renderer, fitted to the box. */
-@Composable
-private fun LevelPreviewCanvas(
-    level: LevelData,
-    showPaper: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    Canvas(modifier) {
-        val camera = GameRenderer.fitCamera(level, size.width, size.height)
-        val styleScale = GameRenderer.styleScale(level)
-        with(GameRenderer) {
-            if (showPaper) drawPaper(camera, level.cols, level.rows, styleScale)
-            withWorld(camera) {
-                level.goal?.let { drawGoal(it, 0f, styleScale) }
-                drawPlatforms(level.platforms, styleScale)
-                drawHazards(level.hazards, 0f, styleScale)
-                drawCoins(level, null, null, 0f, 0f, styleScale)
-                drawSpawnMarker(level, 0f, styleScale)
-            }
-        }
-    }
 }
 
 @Composable

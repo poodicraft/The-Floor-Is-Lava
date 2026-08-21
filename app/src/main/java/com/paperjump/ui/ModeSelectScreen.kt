@@ -39,6 +39,7 @@ import com.paperjump.game.GameMode
 import com.paperjump.game.GameSetup
 import com.paperjump.game.Twist
 import com.paperjump.processing.LevelData
+import com.paperjump.ui.components.LevelPreview
 import com.paperjump.ui.components.ScreenHeader
 import com.paperjump.ui.components.SectionLabel
 import com.paperjump.ui.components.SegmentedChoice
@@ -101,10 +102,23 @@ fun ModeSelectScreen(
             return@Column
         }
 
+        // What you just made, drawn by the renderer that will draw it in play.
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .height(150.dp),
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            tonalElevation = 1.dp,
+        ) {
+            LevelPreview(level = level, modifier = Modifier.fillMaxSize())
+        }
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 4.dp),
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             StatChip(value = level.platforms.size.toString(), label = "lines")
@@ -113,6 +127,11 @@ fun ModeSelectScreen(
                 value = if (level.goal != null) "yes" else "none",
                 label = "flag",
                 accent = if (level.goal != null) SkyBlue else MaterialTheme.colorScheme.error,
+            )
+            StatChip(
+                value = if (level.hazards.isEmpty()) "0" else level.hazards.size.toString(),
+                label = "lava",
+                accent = LavaOrange,
             )
         }
 

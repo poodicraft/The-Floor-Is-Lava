@@ -24,6 +24,7 @@ class SketchGeometryTest {
     private val green = 0xFF21B04B.toInt()
     private val gold = 0xFFF2C200.toInt()
     private val blue = 0xFF1E6FE0.toInt()
+    private val lava = 0xFFE01B12.toInt()
 
     private fun sheet() = IntArray(w * h) { paper }
 
@@ -146,21 +147,86 @@ class SketchGeometryTest {
     }
 
     @Test
-    fun `a deliberate ramp keeps its slope`() {
+    fun `a noticeably tilted line is still flattened`() {
+        // The rule people expect: a line drawn by hand comes out level unless they were
+        // clearly drawing something that slopes. 60px over 700 is a visible tilt and a
+        // mistake, not a design.
         val pixels = sheet()
-        // Drifts 300px over 700 — 23°, unmistakably a ramp somebody meant to draw.
-        pixels.slanted(yStart = 300, rise = 300, thickness = 10, x0 = 100, x1 = 800)
+        pixels.slanted(yStart = 400, rise = 60, thickness = 10, x0 = 100, x1 = 800)
 
         val level = LevelBuilder.build(pixels, w, h, ProcessingConfig())
 
-        val occupiedRows = mutableSetOf<Int>()
-        for (col in 0 until level.cols) {
-            for (row in 0 until level.rows) if (level.isSolid(col, row)) occupiedRows += row
+        assertTrue("the tilt survived", rowSpan(level) <= 1)
+    }
+
+    @Test
+    fun `a steep ramp keeps its slope`() {
+        val pixels = sheet()
+        // 400px over 700 — 30°, unmistakably a ramp somebody meant to draw.
+        pixels.slanted(yStart = 200, rise = 400, thickness = 10, x0 = 100, x1 = 800)
+
+        val level = LevelBuilder.build(pixels, w, h, ProcessingConfig())
+
+        assertTrue("the ramp was flattened into a bar", rowSpan(level) > 8)
+    }
+
+    @Test
+    fun `a staircase is left exactly as drawn`() {
+        // Four flat treads joined by risers: crooked on purpose.
+        val pixels = sheet()
+        for (step in 0 until 4) {
+            val x0 = 100 + step * 160
+            val y = 250 + step * 90
+            pixels.bar(y = y, thickness = 10, x0 = x0, x1 = x0 + 160)
+            // The riser down to the next tread.
+            for (yy in y until y + 100) {
+                for (xx in (x0 + 150) until (x0 + 160)) pixels[yy * w + xx] = ink
+            }
         }
+
+        val level = LevelBuilder.build(pixels, w, h, ProcessingConfig())
+
+        assertTrue("the staircase was flattened into one bar", rowSpan(level) > 20)
+
+        // Each tread should still be at its own height.
+        val treadRows = (0 until 4).map { step ->
+            val col = level.cols * (180 + step * 160) / w
+            (0 until level.rows).first { level.isSolid(col, it) }
+        }
+        assertEquals("treads should descend", treadRows.sorted(), treadRows)
+        assertTrue("the treads all ended up at the same height", treadRows.toSet().size == 4)
+    }
+
+    @Test
+    fun `lava is straightened too`() {
+        val pixels = sheet()
+        pixels.bar(y = 700, thickness = 12)
+        // A wobbly red pool along the floor.
+        for (xx in 100 until 800) {
+            val wobble = if ((xx / 40) % 2 == 0) 0 else 9
+            for (yy in (640 + wobble) until (664 + wobble)) pixels[yy * w + xx] = lava
+        }
+
+        val level = LevelBuilder.build(pixels, w, h, ProcessingConfig())
+
+        val hazardRows = mutableSetOf<Int>()
+        for (col in 0 until level.cols) {
+            for (row in 0 until level.rows) if (level.isHazard(col, row)) hazardRows += row
+        }
+        assertTrue("no lava was detected at all", hazardRows.isNotEmpty())
         assertTrue(
-            "the ramp was flattened into a bar",
-            occupiedRows.max() - occupiedRows.min() > 8,
+            "the lava still wobbles across rows ${hazardRows.min()}..${hazardRows.max()}",
+            hazardRows.max() - hazardRows.min() <= 2,
         )
+    }
+
+    /** How many rows the level's ink spans in total. */
+    private fun rowSpan(level: com.paperjump.processing.LevelData): Int {
+        val rows = mutableSetOf<Int>()
+        for (col in 0 until level.cols) {
+            for (row in 0 until level.rows) if (level.isSolid(col, row)) rows += row
+        }
+        return rows.max() - rows.min()
     }
 
     @Test

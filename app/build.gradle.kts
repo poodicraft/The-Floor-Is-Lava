@@ -1,8 +1,21 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+
+/**
+ * The release counter, from version.properties.
+ *
+ * Read from a file rather than written here so there is exactly one place to bump, and so
+ * the number in the app's About screen cannot drift away from the one Android shows in the
+ * app's details page — both come from this.
+ */
+val releaseNumber: Int = Properties().apply {
+    rootProject.file("version.properties").inputStream().use { load(it) }
+}.getProperty("versionCode").trim().toInt()
 
 android {
     namespace = "com.paperjump"
@@ -12,8 +25,8 @@ android {
         applicationId = "com.paperjump"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = releaseNumber
+        versionName = "1.$releaseNumber"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

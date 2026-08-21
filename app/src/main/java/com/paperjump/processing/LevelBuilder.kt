@@ -120,7 +120,11 @@ object LevelBuilder {
         // looks at the shape of the level.
         bridgeMarks(solid, cells, cols, rows)
 
-        if (config.straightenLines) straightenLines(solid, cols, rows)
+        if (config.straightenLines) {
+            straightenLines(solid, cols, rows)
+            // Lava is drawn by the same hand as the platforms and wobbles just as much.
+            straightenLines(hazard, cols, rows)
+        }
 
         val platforms = mergeRects(solid, cols, rows)
         val hazardRects = mergeRects(hazard, cols, rows)
@@ -512,6 +516,16 @@ object LevelBuilder {
         if (counts.max() > thickness * 3 + 2) return false
 
         val spine = FloatArray(length) { sums[it].toFloat() / counts[it] }
+
+        // A staircase is a line somebody meant to be crooked, and it is recognisable by
+        // *how* it descends: in abrupt steps, rather than drifting. Anything that steps is
+        // left exactly as drawn; everything else gets flattened, however far it leans,
+        // because a line that was meant to be level should come out level.
+        for (step in 0 until length - 1) {
+            if (abs(spine[step + 1] - spine[step]) >= STEP_HEIGHT) return false
+        }
+
+        // A steep, smooth diagonal is a deliberate ramp rather than a wobble.
         val drift = spine.max() - spine.min()
         if (drift > length * MAX_STRAIGHTEN_SLOPE) return false
 
@@ -536,8 +550,19 @@ object LevelBuilder {
     /** Anything fatter is a filled shape, not a line. */
     private const val MAX_STRAIGHTEN_THICKNESS = 6
 
-    /** ~12°: a hand wobble gets flattened, a ramp somebody meant to draw does not. */
-    private const val MAX_STRAIGHTEN_SLOPE = 0.22f
+    /**
+     * ~29°. Below this a line reads as "meant to be level" and is flattened; above it, the
+     * lean is clearly deliberate and is kept.
+     */
+    private const val MAX_STRAIGHTEN_SLOPE = 0.55f
+
+    /**
+     * A jump this big between neighbouring columns is a step, not a wobble.
+     *
+     * One is enough to call the whole run a staircase: a hand-drawn level line strays by a
+     * fraction of a cell between neighbours, never by a cell and a half.
+     */
+    private const val STEP_HEIGHT = 1.5f
 
     // ---------------------------------------------------------------- denoising
 

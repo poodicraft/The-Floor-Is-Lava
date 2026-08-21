@@ -1,5 +1,10 @@
 package com.paperjump
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.NavHostController
@@ -48,7 +53,28 @@ fun PaperJumpApp(
 ) {
     val settings = viewModel.settingsRepository.settings
 
-    NavHost(navController = navController, startDestination = Routes.HOME) {
+    // Screens slide in the direction you are travelling, so the app has a sense of depth
+    // instead of cutting between unrelated pages.
+    NavHost(
+        navController = navController,
+        startDestination = Routes.HOME,
+        enterTransition = {
+            slideInHorizontally(animationSpec = tween(SCREEN_MOTION_MS)) { it / 6 } +
+                fadeIn(animationSpec = tween(SCREEN_MOTION_MS))
+        },
+        exitTransition = {
+            slideOutHorizontally(animationSpec = tween(SCREEN_MOTION_MS)) { -it / 8 } +
+                fadeOut(animationSpec = tween(SCREEN_MOTION_MS))
+        },
+        popEnterTransition = {
+            slideInHorizontally(animationSpec = tween(SCREEN_MOTION_MS)) { -it / 8 } +
+                fadeIn(animationSpec = tween(SCREEN_MOTION_MS))
+        },
+        popExitTransition = {
+            slideOutHorizontally(animationSpec = tween(SCREEN_MOTION_MS)) { it / 6 } +
+                fadeOut(animationSpec = tween(SCREEN_MOTION_MS))
+        },
+    ) {
 
         composable(Routes.HOME) {
             HomeScreen(
@@ -181,6 +207,9 @@ fun PaperJumpApp(
         }
     }
 }
+
+/** Long enough to read as movement, short enough never to be in the way. */
+private const val SCREEN_MOTION_MS = 260
 
 @Composable
 private fun ReturnHome(navController: NavHostController) {

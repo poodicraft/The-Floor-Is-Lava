@@ -27,6 +27,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Owns everything that outlives a single screen: the current sketch and level, the
@@ -98,7 +101,7 @@ class SketchGameViewModel(application: Application) : AndroidViewModel(applicati
         config = ProcessingConfig()
         level = null
         currentSavedId = null
-        reprocess(debounce = false)
+        reprocess(debounce = false, saveToLibrary = true)
     }
 
     /** Rasterises the sketchpad and sends it through the same detector as a photograph. */
@@ -117,6 +120,7 @@ class SketchGameViewModel(application: Application) : AndroidViewModel(applicati
                 currentSavedId = null
                 level = withContext(Dispatchers.Default) { ImageProcessor.process(bitmap, config) }
                 isProcessing = false
+                autoSave()
             } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (error: Throwable) {
@@ -150,7 +154,7 @@ class SketchGameViewModel(application: Application) : AndroidViewModel(applicati
         currentSavedId = null
     }
 
-    private fun reprocess(debounce: Boolean) {
+    private fun reprocess(debounce: Boolean, saveToLibrary: Boolean = false) {
         val bitmap = sketch ?: return
         val currentConfig = config
         processingJob?.cancel()
@@ -164,6 +168,7 @@ class SketchGameViewModel(application: Application) : AndroidViewModel(applicati
                     ImageProcessor.process(bitmap, currentConfig)
                 }
                 isProcessing = false
+                if (saveToLibrary) autoSave() else updateSavedTuning()
             } catch (cancellation: CancellationException) {
                 // A newer request superseded this one; it owns `isProcessing` now.
                 throw cancellation
@@ -175,6 +180,47 @@ class SketchGameViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     // ---- the library ----------------------------------------------------------------
+
+    /**
+     * Puts a newly made level straight into the library.
+     *
+     * Nobody wants to lose a drawing because they forgot to press save, and a level is
+     * cheap to keep — an image and four numbers. Renaming and deleting are still there for
+     * tidying up afterwards.
+     */
+    private fun autoSave() {
+        val bitmap = sketch ?: return
+        if (currentSavedId != null) return
+        val currentConfig = config
+        val currentSource = source
+        viewModelScope.launch {
+            val meta = levelStore.save(bitmap, autoSaveName(currentSource), currentSource, currentConfig)
+            currentSavedId = meta.id
+            refreshLibrary()
+        }
+    }
+
+    /**
+     * Keeps an already-saved level's stored tuning in step with the sliders.
+     *
+     * Without this, re-opening a level from the library would quietly undo any adjustment
+     * made after it was first saved.
+     */
+    private fun updateSavedTuning() {
+        val id = currentSavedId ?: return
+        val currentConfig = config
+        viewModelScope.launch { levelStore.updateConfig(id, currentConfig) }
+    }
+
+    private fun autoSaveName(from: LevelSource): String {
+        val stamp = SimpleDateFormat("d MMM, HH:mm", Locale.getDefault()).format(Date())
+        val what = when (from) {
+            LevelSource.DRAWN -> "Drawing"
+            LevelSource.PHOTO -> "Photo"
+            LevelSource.SAMPLE -> "Sample"
+        }
+        return "$what · $stamp"
+    }
 
     fun refreshLibrary() {
         viewModelScope.launch { savedLevels = levelStore.list() }
