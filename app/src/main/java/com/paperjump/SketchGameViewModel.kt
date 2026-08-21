@@ -132,7 +132,11 @@ class SketchGameViewModel(application: Application) : AndroidViewModel(applicati
         reprocess(debounce = true)
     }
 
-    fun setMode(newMode: GameMode) {
+    /**
+     * Not `setMode`: `var mode` already compiles to a `setMode` on the JVM, and a function
+     * of that name would clash with it.
+     */
+    fun selectMode(newMode: GameMode) {
         mode = newMode
     }
 

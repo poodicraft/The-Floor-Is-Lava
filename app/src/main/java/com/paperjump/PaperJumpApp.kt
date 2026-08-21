@@ -139,7 +139,7 @@ fun PaperJumpApp(
                     level = level,
                     recordFor = viewModel::recordFor,
                     onPlay = { mode ->
-                        viewModel.setMode(mode)
+                        viewModel.selectMode(mode)
                         navController.navigate(Routes.GAME)
                     },
                     onBack = { navController.popBackStack() },
