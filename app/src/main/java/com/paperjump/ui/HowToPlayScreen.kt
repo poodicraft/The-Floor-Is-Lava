@@ -1,5 +1,6 @@
 package com.paperjump.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -129,11 +130,12 @@ fun HowToPlayScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
 
 @Composable
 private fun Card(content: @Composable () -> Unit) {
+    // Outlined rather than raised, to match the tiles and buttons everywhere else.
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(22.dp),
         color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 1.dp,
+        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
     ) {
         Column(modifier = Modifier.padding(16.dp)) { content() }
     }

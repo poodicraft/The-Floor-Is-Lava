@@ -22,7 +22,6 @@ import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Redo
 import androidx.compose.material.icons.rounded.Undo
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -51,7 +50,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import com.paperjump.ui.components.PaperButton
 import com.paperjump.ui.components.ScreenHeader
+import com.paperjump.ui.theme.SpringGreen
 import kotlin.math.max
 
 /**
@@ -168,16 +169,16 @@ fun DrawingScreen(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         )
 
-        Button(
+        PaperButton(
+            text = "Play this level",
+            icon = Icons.Rounded.PlayArrow,
             onClick = { onPlay(document, aspect) },
             enabled = !document.isEmpty,
+            accent = SpringGreen,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 12.dp),
-        ) {
-            Icon(Icons.Rounded.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
-            Text("  Play this level")
-        }
+        )
     }
 }
 

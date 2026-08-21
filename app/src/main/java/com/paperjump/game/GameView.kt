@@ -30,16 +30,15 @@ import androidx.compose.material.icons.rounded.Air
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -72,10 +71,15 @@ import androidx.compose.ui.unit.sp
 import com.paperjump.data.AppSettings
 import com.paperjump.data.LevelRecord
 import com.paperjump.processing.LevelData
+import com.paperjump.ui.components.PaperButton
+import com.paperjump.ui.components.PaperOutlineButton
+import com.paperjump.ui.components.PaperQuietButton
+import com.paperjump.ui.components.StickerBadge
 import com.paperjump.ui.theme.CoinGold
 import com.paperjump.ui.theme.InkBlack
 import com.paperjump.ui.theme.LavaOrange
 import com.paperjump.ui.theme.LavaRed
+import com.paperjump.ui.theme.SkyBlue
 import com.paperjump.ui.theme.SpringGreen
 import java.util.Locale
 import kotlin.math.min
@@ -561,15 +565,30 @@ private fun PauseOverlay(
     onChangeMode: () -> Unit,
     onQuit: () -> Unit,
 ) {
-    OverlayCard(title = "Paused", subtitle = setup.label, accent = Color.White) {
-        Button(onClick = onResume, modifier = Modifier.fillMaxWidth()) { Text("Resume") }
-        OutlinedButton(onClick = onRestart, modifier = Modifier.fillMaxWidth()) {
-            Text("Restart level")
-        }
-        OutlinedButton(onClick = onChangeMode, modifier = Modifier.fillMaxWidth()) {
-            Text("Change game")
-        }
-        TextButton(onClick = onQuit, modifier = Modifier.fillMaxWidth()) { Text("Quit to menu") }
+    OverlayCard(title = "Paused", subtitle = setup.label, accent = SkyBlue) {
+        PaperButton(
+            text = "Resume",
+            icon = Icons.Rounded.PlayArrow,
+            onClick = onResume,
+            modifier = Modifier.fillMaxWidth(),
+            accent = SpringGreen,
+        )
+        PaperOutlineButton(
+            text = "Restart level",
+            icon = Icons.Rounded.Refresh,
+            onClick = onRestart,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        PaperOutlineButton(
+            text = "Change game",
+            onClick = onChangeMode,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        PaperQuietButton(
+            text = "Quit to menu",
+            onClick = onQuit,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
@@ -599,12 +618,7 @@ private fun ResultOverlay(
         accent = if (won) SpringGreen else LavaOrange,
     ) {
         if (won && wasPersonalBest) {
-            Text(
-                text = "New best time!",
-                style = MaterialTheme.typography.titleMedium,
-                color = CoinGold,
-                textAlign = TextAlign.Center,
-            )
+            StickerBadge(text = "New best time!", accent = CoinGold)
         } else if (won) {
             record.bestTimeSeconds?.let {
                 Text(
@@ -616,14 +630,28 @@ private fun ResultOverlay(
             }
         }
 
-        Button(onClick = onRetry, modifier = Modifier.fillMaxWidth()) {
-            Text(if (won) "Play again" else "Try again")
-        }
-        OutlinedButton(onClick = onChangeMode, modifier = Modifier.fillMaxWidth()) {
-            Text("Change game")
-        }
-        TextButton(onClick = onTune, modifier = Modifier.fillMaxWidth()) { Text("Tune this level") }
-        TextButton(onClick = onQuit, modifier = Modifier.fillMaxWidth()) { Text("Quit to menu") }
+        PaperButton(
+            text = if (won) "Play again" else "Try again",
+            icon = if (won) Icons.Rounded.PlayArrow else Icons.Rounded.Refresh,
+            onClick = onRetry,
+            modifier = Modifier.fillMaxWidth(),
+            accent = if (won) SpringGreen else LavaOrange,
+        )
+        PaperOutlineButton(
+            text = "Change game",
+            onClick = onChangeMode,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        PaperQuietButton(
+            text = "Tune this level",
+            onClick = onTune,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        PaperQuietButton(
+            text = "Quit to menu",
+            onClick = onQuit,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 

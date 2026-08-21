@@ -19,12 +19,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Air
 import androidx.compose.material.icons.rounded.DirectionsRun
 import androidx.compose.material.icons.rounded.Explore
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Terrain
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -40,7 +40,10 @@ import com.paperjump.game.GameSetup
 import com.paperjump.game.Twist
 import com.paperjump.processing.LevelData
 import com.paperjump.ui.components.LevelPreview
+import com.paperjump.ui.components.PaperCard
+import com.paperjump.ui.components.PaperOutlineButton
 import com.paperjump.ui.components.ScreenHeader
+import com.paperjump.ui.components.contentColorOn
 import com.paperjump.ui.components.SectionLabel
 import com.paperjump.ui.components.SegmentedChoice
 import com.paperjump.ui.components.StatChip
@@ -185,10 +188,13 @@ fun ModeSelectScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            OutlinedButton(onClick = onTune, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Rounded.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
-                Text("  Something look wrong? Adjust the reading")
-            }
+            PaperOutlineButton(
+                text = "Something look wrong? Adjust the reading",
+                icon = Icons.Rounded.Tune,
+                onClick = onTune,
+                modifier = Modifier.fillMaxWidth(),
+                accent = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
 
             Spacer(Modifier.height(16.dp))
         }
@@ -203,13 +209,7 @@ private fun ModeCard(
     onClick: () -> Unit,
 ) {
     val accent = accentOf(mode)
-    Surface(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 2.dp,
-    ) {
+    PaperCard(onClick = onClick, accent = accent) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -240,6 +240,16 @@ private fun ModeCard(
                             text = "best",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                // A play disc, so a card that is really a big button looks like one.
+                Surface(shape = CircleShape, color = accent, contentColor = contentColorOn(accent)) {
+                    Box(modifier = Modifier.size(38.dp), contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Rounded.PlayArrow,
+                            contentDescription = null,
+                            modifier = Modifier.size(22.dp),
                         )
                     }
                 }

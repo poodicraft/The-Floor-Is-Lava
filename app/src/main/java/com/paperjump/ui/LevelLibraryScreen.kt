@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,12 +23,10 @@ import androidx.compose.material.icons.rounded.Brush
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DriveFileRenameOutline
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -46,7 +43,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.paperjump.data.SavedLevelMeta
+import com.paperjump.ui.components.PaperButton
+import com.paperjump.ui.components.PaperCard
 import com.paperjump.ui.components.ScreenHeader
+import com.paperjump.ui.theme.LavaOrange
 import java.text.DateFormat
 import java.util.Date
 
@@ -138,13 +138,7 @@ private fun LevelRow(
     var thumbnail by remember(meta.id) { mutableStateOf<Bitmap?>(null) }
     LaunchedEffect(meta.id) { thumbnail = loadThumbnail(meta.id) }
 
-    Surface(
-        onClick = onOpen,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 2.dp,
-    ) {
+    PaperCard(onClick = onOpen, accent = LavaOrange) {
         Row(
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -244,11 +238,12 @@ private fun EmptyLibrary(onDraw: () -> Unit, modifier: Modifier = Modifier) {
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(20.dp))
-        Button(onClick = onDraw) {
-            Icon(Icons.Rounded.Brush, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Draw one now")
-        }
+        PaperButton(
+            text = "Draw one now",
+            icon = Icons.Rounded.Brush,
+            onClick = onDraw,
+            accent = LavaOrange,
+        )
     }
 }
 

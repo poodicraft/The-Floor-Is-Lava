@@ -41,9 +41,9 @@ class MainActivity : ComponentActivity() {
                 ) {
                     PaperJumpApp(
                         viewModel = viewModel,
-                        // Both halves come from version.properties, so this is exactly what
-                        // Android shows on the app's details page.
-                        versionName = "${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})",
+                        // Straight from version.properties, so this is exactly what Android
+                        // shows on the app's details page.
+                        versionName = BuildConfig.VERSION_NAME,
                     )
                 }
             }

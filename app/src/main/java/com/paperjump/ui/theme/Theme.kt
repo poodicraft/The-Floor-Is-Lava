@@ -1,7 +1,9 @@
 package com.paperjump.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -9,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 // Ink-on-paper base with a lava accent — the same palette the game canvas uses.
@@ -63,11 +66,25 @@ private val LightScheme = lightColorScheme(
 )
 
 private val AppTypography = Typography(
-    displaySmall = TextStyle(fontSize = 32.sp, fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp),
-    headlineSmall = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Bold),
-    titleMedium = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold),
+    displaySmall = TextStyle(fontSize = 38.sp, fontWeight = FontWeight.Black, letterSpacing = (-1).sp),
+    headlineSmall = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.2).sp),
+    titleMedium = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.Bold),
     bodyMedium = TextStyle(fontSize = 15.sp, lineHeight = 21.sp),
-    labelLarge = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.4.sp),
+    labelLarge = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp),
+)
+
+/**
+ * Rounder than Material's defaults, everywhere.
+ *
+ * Set on the theme rather than per component so the pieces the app does not draw itself —
+ * dialogs, sliders, text fields — round off to match the tiles and buttons that it does.
+ */
+private val AppShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(18.dp),
+    large = RoundedCornerShape(24.dp),
+    extraLarge = RoundedCornerShape(30.dp),
 )
 
 @Composable
@@ -78,6 +95,7 @@ fun PaperJumpTheme(
     MaterialTheme(
         colorScheme = if (darkTheme) DarkScheme else LightScheme,
         typography = AppTypography,
+        shapes = AppShapes,
         content = content,
     )
 }

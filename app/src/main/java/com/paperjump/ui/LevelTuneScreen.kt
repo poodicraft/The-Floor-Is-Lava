@@ -16,19 +16,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.BookmarkBorder
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
@@ -50,6 +45,9 @@ import androidx.compose.ui.unit.dp
 import com.paperjump.processing.LevelData
 import com.paperjump.processing.ProcessingConfig
 import com.paperjump.ui.components.LevelPreview
+import com.paperjump.ui.components.PaperButton
+import com.paperjump.ui.components.PaperOutlineButton
+import com.paperjump.ui.components.ScreenHeader
 import kotlin.math.roundToInt
 
 /**
@@ -85,16 +83,11 @@ fun LevelTuneScreen(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onRetake) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Take another photo")
-            }
-            Text(
-                text = "Your level",
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.padding(start = 4.dp),
-            )
-        }
+        ScreenHeader(
+            title = "Your level",
+            subtitle = "How the drawing was read",
+            onBack = onRetake,
+        )
 
         Card(
             shape = RoundedCornerShape(20.dp),
@@ -217,27 +210,21 @@ fun LevelTuneScreen(
             }
         }
 
-        Button(
+        PaperButton(
+            text = "Back to the games",
+            icon = Icons.Rounded.PlayArrow,
             onClick = onContinue,
             enabled = level != null,
             modifier = Modifier.fillMaxWidth(),
-        ) {
-            Icon(Icons.Rounded.PlayArrow, contentDescription = null)
-            Text("  Back to the games")
-        }
+        )
 
-        OutlinedButton(
+        PaperOutlineButton(
+            text = if (isSaved) "Rename in my levels" else "Save to my levels",
+            icon = if (isSaved) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
             onClick = { naming = true },
             enabled = level != null,
             modifier = Modifier.fillMaxWidth(),
-        ) {
-            Icon(
-                if (isSaved) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-            )
-            Text(if (isSaved) "  Rename in my levels" else "  Save to my levels")
-        }
+        )
     }
 
     if (naming) {

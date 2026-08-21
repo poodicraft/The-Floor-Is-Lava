@@ -1,5 +1,6 @@
 package com.paperjump.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,9 +13,11 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.DeleteSweep
+import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -29,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.paperjump.data.AppSettings
 import com.paperjump.data.ThemeChoice
+import com.paperjump.ui.components.PaperOutlineButton
 import com.paperjump.ui.components.ScreenHeader
 import com.paperjump.ui.components.SectionLabel
 import com.paperjump.ui.components.SegmentedChoice
@@ -99,37 +103,32 @@ fun SettingsScreen(
             )
 
             SectionLabel("Saved data")
-            OutlinedButton(
+            PaperOutlineButton(
+                text = "Clear personal bests",
+                icon = Icons.Rounded.Restore,
                 onClick = { confirmingClearRecords = true },
                 modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Clear personal bests")
-            }
-            OutlinedButton(
+                accent = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            PaperOutlineButton(
+                text = if (savedLevelCount > 0) {
+                    "Delete all $savedLevelCount saved levels"
+                } else {
+                    "No saved levels"
+                },
+                icon = Icons.Rounded.DeleteSweep,
                 onClick = { confirmingClearLevels = true },
                 enabled = savedLevelCount > 0,
                 modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    text = if (savedLevelCount > 0) {
-                        "Delete all $savedLevelCount saved levels"
-                    } else {
-                        "No saved levels"
-                    },
-                    color = if (savedLevelCount > 0) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                )
-            }
+                accent = MaterialTheme.colorScheme.error,
+            )
 
             SectionLabel("About")
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
+                shape = RoundedCornerShape(22.dp),
                 color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 1.dp,
+                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Paper Jump $versionName", style = MaterialTheme.typography.titleMedium)
@@ -181,9 +180,9 @@ fun SettingsScreen(
 private fun ControlSizeSetting(scale: Float, onChange: (Float) -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 1.dp,
+        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
     ) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

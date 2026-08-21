@@ -1,5 +1,11 @@
 package com.paperjump.ui
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -23,13 +28,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.paperjump.ui.components.HeroTile
 import com.paperjump.ui.components.MenuTile
 import com.paperjump.ui.components.PaperBackdrop
 import com.paperjump.ui.theme.CoinGold
@@ -49,8 +55,6 @@ fun HomeScreen(
     onSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val underline = LavaOrange
-
     Box(modifier = modifier.fillMaxSize()) {
         PaperBackdrop()
 
@@ -62,56 +66,27 @@ fun HomeScreen(
                 .padding(horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(Modifier.height(44.dp))
+            Spacer(Modifier.height(40.dp))
 
-            Text(
-                text = "Paper Jump",
-                style = MaterialTheme.typography.displaySmall,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-            // A hand-drawn underline, in keeping with what the app is about.
-            Canvas(
-                modifier = Modifier
-                    .padding(top = 6.dp)
-                    .width(196.dp)
-                    .height(10.dp),
-            ) {
-                val stroke = size.height * 0.42f
-                val path = Path().apply {
-                    moveTo(0f, size.height * 0.6f)
-                    cubicTo(
-                        size.width * 0.28f, size.height * 0.05f,
-                        size.width * 0.62f, size.height * 1.0f,
-                        size.width, size.height * 0.35f,
-                    )
-                }
-                drawPath(
-                    path = path,
-                    color = underline,
-                    style = Stroke(width = stroke, cap = StrokeCap.Round),
-                )
-            }
-            Text(
-                text = "Draw a level. Play it four ways.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 10.dp),
+            Title()
+
+            Spacer(Modifier.height(26.dp))
+
+            // The whole point of the app, one tap away and looking like it.
+            HeroTile(
+                title = "Draw a level",
+                subtitle = "Sketch it here with your finger",
+                icon = Icons.Rounded.Brush,
+                accent = LavaOrange,
+                onClick = onDraw,
             )
 
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(12.dp))
 
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                MenuTile(
-                    title = "Draw a level",
-                    subtitle = "Sketch it here with your finger",
-                    icon = Icons.Rounded.Brush,
-                    accent = LavaOrange,
-                    onClick = onDraw,
-                )
                 MenuTile(
                     title = "Photograph a sketch",
                     subtitle = "Turn a real drawing into a level",
@@ -161,7 +136,7 @@ fun HomeScreen(
                 )
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(22.dp))
 
             Text(
                 text = "Version $versionName",
@@ -170,6 +145,57 @@ fun HomeScreen(
             )
 
             Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+/**
+ * The app's name, underlined by hand and with a badge stuck to it.
+ *
+ * The underline is drawn rather than typed so it wobbles like the drawings the app is made
+ * of, and it sweeps in on launch — the one bit of showmanship on an otherwise plain page.
+ */
+@Composable
+private fun Title() {
+    val transition = rememberInfiniteTransition(label = "title")
+    // A slow breath rather than a one-shot draw: the page is never completely still.
+    val sweep by transition.animateFloat(
+        initialValue = 0.86f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2600, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "sweep",
+    )
+    val underline = LavaOrange
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = "Paper Jump",
+            style = MaterialTheme.typography.displaySmall,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        Canvas(
+            modifier = Modifier
+                .padding(top = 4.dp)
+                .fillMaxWidth(0.72f)
+                .height(12.dp),
+        ) {
+            val stroke = size.height * 0.4f
+            val path = Path().apply {
+                moveTo(0f, size.height * 0.6f)
+                cubicTo(
+                    size.width * 0.28f, size.height * 0.05f,
+                    size.width * 0.62f, size.height * 1.0f,
+                    size.width * sweep, size.height * 0.35f,
+                )
+            }
+            drawPath(
+                path = path,
+                color = underline,
+                style = Stroke(width = stroke, cap = StrokeCap.Round),
+            )
         }
     }
 }

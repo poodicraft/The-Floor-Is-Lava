@@ -31,7 +31,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.PhotoLibrary
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -61,6 +60,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.paperjump.data.LevelSource
 import com.paperjump.processing.SampleSketch
 import com.paperjump.ui.SketchLegend
+import com.paperjump.ui.components.PaperButton
 import com.paperjump.ui.theme.InkBlack
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -329,7 +329,7 @@ private fun PermissionCard(onGrant: () -> Unit) {
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
             )
-            Button(onClick = onGrant) { Text("Allow camera") }
+            PaperButton(text = "Allow camera", onClick = onGrant)
         }
     }
 }
