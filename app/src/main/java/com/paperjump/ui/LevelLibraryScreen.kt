@@ -33,9 +33,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -135,9 +135,8 @@ private fun LevelRow(
     onDelete: () -> Unit,
 ) {
     // Decoded off the main thread, once per row, and only at thumbnail size.
-    val thumbnail by produceState<Bitmap?>(initialValue = null, meta.id) {
-        value = loadThumbnail(meta.id)
-    }
+    var thumbnail by remember(meta.id) { mutableStateOf<Bitmap?>(null) }
+    LaunchedEffect(meta.id) { thumbnail = loadThumbnail(meta.id) }
 
     Surface(
         onClick = onOpen,
