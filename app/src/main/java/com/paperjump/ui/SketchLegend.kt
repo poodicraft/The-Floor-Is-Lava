@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.paperjump.ui.theme.CoinGold
+import com.paperjump.ui.theme.CreatureViolet
 import com.paperjump.ui.theme.InkSoft
 import com.paperjump.ui.theme.LavaRed
 import com.paperjump.ui.theme.SkyBlue
@@ -31,6 +32,7 @@ private val LEGEND = listOf(
     LegendEntry("Red", "Lava", LavaRed),
     LegendEntry("Yellow", "Coins", CoinGold),
     LegendEntry("Blue", "Goal", SkyBlue),
+    LegendEntry("Purple", "Creatures", CreatureViolet),
 )
 
 private data class LegendEntry(val ink: String, val meaning: String, val color: Color)

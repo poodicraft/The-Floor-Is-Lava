@@ -6,6 +6,7 @@ import com.paperjump.game.GameMode
 import com.paperjump.game.GameSetup
 import com.paperjump.game.GameStatus
 import com.paperjump.processing.Coin
+import com.paperjump.processing.Enemy
 import com.paperjump.processing.LevelData
 import com.paperjump.processing.LevelRect
 import com.paperjump.processing.Vec2
@@ -32,6 +33,7 @@ class GameKindsTest {
         coins: List<Coin> = emptyList(),
         goal: LevelRect? = null,
         spawn: Vec2 = Vec2(2.5f, floorRow - 0.5f),
+        enemies: List<Enemy> = emptyList(),
     ): LevelData {
         val solid = BooleanArray(cols * rows)
         if (floor) for (col in 0 until cols) solid[floorRow * cols + col] = true
@@ -47,6 +49,7 @@ class GameKindsTest {
             coins = coins,
             spawn = spawn,
             goal = goal,
+            enemies = enemies,
         )
     }
 
@@ -265,5 +268,72 @@ class GameKindsTest {
 
             assertEquals("$mode could not reach the flag", GameStatus.WON, engine.status)
         }
+    }
+
+    // ---- creatures --------------------------------------------------------------------
+
+    @Test
+    fun `walking into a creature ends the run`() {
+        val creature = Enemy(0, Vec2(6.5f, floorRow - 0.5f), radius = 0.5f)
+        val engine = engine(GameMode.PLATFORMER, room(enemies = listOf(creature)))
+
+        engine.moveRight = true
+        engine.run(3f)
+
+        assertEquals(GameStatus.DEAD, engine.status)
+        assertEquals(DeathCause.ENEMY, engine.deathCause)
+    }
+
+    @Test
+    fun `landing on a creature squashes it and bounces the player`() {
+        val creature = Enemy(0, Vec2(3.2f, floorRow - 0.5f), radius = 0.5f)
+        val engine = engine(GameMode.PLATFORMER, room(enemies = listOf(creature)))
+
+        // Jump, drift onto it, and come down on its head.
+        engine.pressJump()
+        engine.run(0.1f)
+        engine.releaseJump()
+        engine.moveRight = true
+        engine.run(1.2f)
+
+        assertTrue("the creature should have been squashed", engine.enemyDefeated[0])
+        assertEquals("and squashing it is not fatal", GameStatus.PLAYING, engine.status)
+    }
+
+    @Test
+    fun `a creature turns round at the end of its ledge`() {
+        // A three-cell island in mid-air, with the creature on it.
+        val ledge = setOf(8 to 6, 9 to 6, 10 to 6)
+        val creature = Enemy(0, Vec2(9.5f, 5.5f), radius = 0.5f)
+        val level = room(extraSolid = ledge, spawn = Vec2(2.5f, floorRow - 0.5f), enemies = listOf(creature))
+        val engine = GameEngine(level, GameSetup(GameMode.PLATFORMER))
+
+        engine.run(6f)
+
+        assertTrue("it walked off the ledge", engine.enemyX[0] > 8f)
+        assertTrue("it walked off the ledge", engine.enemyX[0] < 11f)
+    }
+
+    @Test
+    fun `a level with no creatures behaves exactly as before`() {
+        val engine = engine(GameMode.PLATFORMER)
+        engine.moveRight = true
+        engine.run(2f)
+        assertEquals(GameStatus.PLAYING, engine.status)
+    }
+
+    @Test
+    fun `restarting brings a squashed creature back`() {
+        val creature = Enemy(0, Vec2(6.5f, floorRow - 0.5f), radius = 0.5f)
+        val engine = engine(GameMode.PLATFORMER, room(enemies = listOf(creature)))
+        val start = engine.enemyX[0]
+
+        engine.moveRight = true
+        engine.run(3f)
+        assertEquals(GameStatus.DEAD, engine.status)
+
+        engine.restart()
+        assertTrue("a restarted creature is alive again", !engine.enemyDefeated[0])
+        assertEquals("and back where it was drawn", start, engine.enemyX[0], 0.01f)
     }
 }

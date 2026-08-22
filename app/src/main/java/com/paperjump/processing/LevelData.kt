@@ -30,6 +30,9 @@ enum class CellType {
 
     /** Blue ink -> goal / finish flag. */
     GOAL,
+
+    /** Purple ink -> a creature that patrols and hurts on contact. */
+    ENEMY,
 }
 
 /** Simple immutable 2D point in world units. */
@@ -56,6 +59,26 @@ data class LevelRect(val x: Float, val y: Float, val width: Float, val height: F
 /** A collectible detected from a yellow blob. */
 data class Coin(val index: Int, val center: Vec2, val radius: Float)
 
+/** A creature detected from a purple blob. It patrols where it was drawn. */
+data class Enemy(val index: Int, val center: Vec2, val radius: Float)
+
+/**
+ * A run of ink that the detector recognised as **one line** rather than as a pile of cells.
+ *
+ * The grid is still what the player collides with, but a level drawn out of these reads as
+ * the drawing it came from: a hand-drawn ledge becomes one clean bar at the angle it was
+ * drawn at, instead of a staircase of little blocks following every wobble of the pen.
+ *
+ * World units, like everything else here; [thickness] is the line's full width.
+ */
+data class LevelStroke(
+    val x1: Float,
+    val y1: Float,
+    val x2: Float,
+    val y2: Float,
+    val thickness: Float,
+)
+
 /**
  * A fully playable level.
  *
@@ -63,8 +86,11 @@ data class Coin(val index: Int, val center: Vec2, val radius: Float)
  * @param rows number of grid rows (world height in units)
  * @param solid one boolean per cell, row-major. The engine collides against this mask.
  * @param hazard one boolean per cell, row-major. Overlapping any of these kills the player.
- * @param platforms [solid] merged into as few rectangles as possible (rendering / debug).
- * @param hazards [hazard] merged into as few rectangles as possible.
+ * @param platforms the *leftover* solid cells — everything that was not recognised as a
+ *   line — merged into as few rectangles as possible.
+ * @param hazards the same, for lava.
+ * @param platformStrokes solid ink that was recognised as lines, as lines.
+ * @param hazardStrokes lava that was recognised as lines.
  * @param spawn where the player's *center* starts.
  * @param goal the rectangle that finishes the level, or `null` if none was detected.
  * @param warnings human readable notes about what the detector had to guess.
@@ -80,9 +106,22 @@ data class LevelData(
     val spawn: Vec2,
     val goal: LevelRect?,
     val warnings: List<String> = emptyList(),
+    val enemies: List<Enemy> = emptyList(),
+    val platformStrokes: List<LevelStroke> = emptyList(),
+    val hazardStrokes: List<LevelStroke> = emptyList(),
 ) {
     val width: Float get() = cols.toFloat()
     val height: Float get() = rows.toFloat()
+
+    /**
+     * How many pieces of ink the level is made of, as a person would count them.
+     *
+     * Lines recognised as lines count once each; whatever was left over is still a pile of
+     * rectangles, so it is counted the only way it can be.
+     */
+    val lineCount: Int get() = platformStrokes.size + platforms.size
+
+    val hasLava: Boolean get() = hazardStrokes.isNotEmpty() || hazards.isNotEmpty()
 
     /**
      * Solid lookup used by the collision resolver.
@@ -126,6 +165,7 @@ data class LevelData(
             solid.contentEquals(other.solid) &&
             hazard.contentEquals(other.hazard) &&
             coins == other.coins &&
+            enemies == other.enemies &&
             spawn == other.spawn &&
             goal == other.goal
     }
@@ -136,6 +176,7 @@ data class LevelData(
         result = 31 * result + solid.contentHashCode()
         result = 31 * result + hazard.contentHashCode()
         result = 31 * result + coins.hashCode()
+        result = 31 * result + enemies.hashCode()
         result = 31 * result + spawn.hashCode()
         result = 31 * result + (goal?.hashCode() ?: 0)
         return result

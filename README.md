@@ -40,6 +40,7 @@ size in a way that ignores the detail slider, the same property the physics alre
 | Red areas              | Lava — touching it is game over        |
 | Yellow / gold dots     | Collectible coins                      |
 | Blue area              | Goal flag — reach it to win            |
+| Purple areas           | Creatures that patrol and hurt         |
 
 Anything else on the page (paper colour, shadows, faint grid lines) is ignored.
 
@@ -84,12 +85,20 @@ CameraScreen ──photo──> SketchGameViewModel ──> ImageProcessor ─�
   2. **Otsu threshold** over the per-cell darkness histogram — the ink/paper split adapts
      to the room's lighting instead of using a magic constant.
   3. **Classify**: saturated cells snap to the nearest reference hue (red 0°, yellow 50°,
-     green 130°, blue 215°); remaining dark cells are platforms.
+     green 130°, blue 215°, purple 288°); remaining dark cells are platforms.
   4. **Denoise**: speckle filter for ink, minimum-blob-size filter for colour.
-  5. **Vectorise**: greedy rectangle merging for platforms and lava, connected components
-     for coins, the biggest green blob for the spawn, the biggest blue blob for the goal.
-* `LevelData.kt` — the level model: a solid mask, a lava mask, merged rectangles, coins,
-  spawn, goal and any `warnings` the detector wants to show the player.
+  5. **Read the ink as lines**: each connected run is reduced to its spine, the spine is
+     simplified with Ramer–Douglas–Peucker, and the ink is redrawn from those vertices at
+     an even thickness. A hand-drawn ledge comes back as one clean bar at the angle it was
+     drawn at, instead of a staircase of blocks following every wobble of the pen; a line
+     that barely leans is snapped exactly level. Filled shapes have no meaningful spine, so
+     they are left as drawn.
+  6. **Vectorise the rest**: greedy rectangle merging for whatever was not a line,
+     connected components for coins and creatures, the biggest green blob for the spawn,
+     the biggest blue blob for the goal.
+* `LevelData.kt` — the level model: a solid mask, a lava mask, the recognised lines, merged
+  rectangles for everything else, coins, creatures, spawn, goal and any `warnings` the
+  detector wants to show the player.
 
 ### 3. Play — `game/`
 

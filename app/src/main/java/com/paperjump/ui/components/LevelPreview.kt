@@ -26,9 +26,10 @@ fun LevelPreview(
             if (showPaper) drawPaper(camera, level.cols, level.rows, styleScale)
             withWorld(camera) {
                 level.goal?.let { drawGoal(it, 0f, styleScale) }
-                drawPlatforms(level.platforms, styleScale)
-                drawHazards(level.hazards, 0f, styleScale)
+                drawPlatforms(level.platforms, level.platformStrokes, styleScale)
+                drawHazards(level.hazards, 0f, styleScale, level.hazardStrokes)
                 drawCoins(level, null, null, 0f, 0f, styleScale)
+                drawEnemies(level, null, 0f, styleScale)
                 drawSpawnMarker(level, 0f, styleScale)
             }
         }

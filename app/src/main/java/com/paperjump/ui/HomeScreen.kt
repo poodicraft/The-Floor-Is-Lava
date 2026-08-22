@@ -10,6 +10,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,28 +32,34 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
+import com.paperjump.data.PlayerStats
 import com.paperjump.ui.components.HeroTile
 import com.paperjump.ui.components.MenuTile
 import com.paperjump.ui.components.PaperBackdrop
+import com.paperjump.ui.components.StatChip
 import com.paperjump.ui.theme.CoinGold
 import com.paperjump.ui.theme.LavaOrange
 import com.paperjump.ui.theme.SkyBlue
 import com.paperjump.ui.theme.SpringGreen
+import java.util.Locale
 
 /** The front door: pick how to make a level, or go somewhere else in the app. */
 @Composable
 fun HomeScreen(
     savedLevelCount: Int,
     versionName: String,
+    stats: PlayerStats,
     onDraw: () -> Unit,
     onPhotograph: () -> Unit,
     onLibrary: () -> Unit,
     onHowToPlay: () -> Unit,
     onSettings: () -> Unit,
+    onWhatsNew: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -70,7 +77,38 @@ fun HomeScreen(
 
             Title()
 
-            Spacer(Modifier.height(26.dp))
+            Spacer(Modifier.height(18.dp))
+
+            // A scoreboard, once there is something on it. An empty one on a first run
+            // would be three zeroes telling the player they have done nothing.
+            if (stats.hasPlayed) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    StatChip(
+                        value = stats.levelsBeaten.toString(),
+                        label = "beaten",
+                        accent = SpringGreen,
+                        modifier = Modifier.weight(1f),
+                    )
+                    StatChip(
+                        value = stats.runs.toString(),
+                        label = "runs",
+                        accent = SkyBlue,
+                        modifier = Modifier.weight(1f),
+                    )
+                    StatChip(
+                        value = stats.bestTimeSeconds
+                            ?.let { String.format(Locale.US, "%.1fs", it) }
+                            ?: "—",
+                        label = "best",
+                        accent = CoinGold,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                Spacer(Modifier.height(14.dp))
+            }
 
             // The whole point of the app, one tap away and looking like it.
             HeroTile(
@@ -138,11 +176,19 @@ fun HomeScreen(
 
             Spacer(Modifier.height(22.dp))
 
-            Text(
-                text = "Version $versionName",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-            )
+            // The version is a link to what changed in it, the way every app's About does.
+            Surface(
+                onClick = onWhatsNew,
+                shape = MaterialTheme.shapes.small,
+                color = Color.Transparent,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            ) {
+                Text(
+                    text = "Version $versionName  ·  What's new",
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
 
             Spacer(Modifier.height(24.dp))
         }

@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.paperjump.data.LevelRecord
 import com.paperjump.data.LevelSource
 import com.paperjump.data.LevelStore
+import com.paperjump.data.PlayerStats
 import com.paperjump.data.RecordKey
 import com.paperjump.data.RecordStore
 import com.paperjump.data.SavedLevelMeta
@@ -80,6 +81,9 @@ class SketchGameViewModel(application: Application) : AndroidViewModel(applicati
 
     var records: Map<RecordKey, LevelRecord> by mutableStateOf(emptyMap())
         private set
+
+    /** What the records add up to, for the home screen's scoreboard. */
+    val stats: PlayerStats get() = PlayerStats.of(records)
 
     /** True when the run that just finished beat the stored best time. */
     var lastRunWasBest: Boolean by mutableStateOf(false)

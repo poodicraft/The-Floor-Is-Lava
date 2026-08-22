@@ -180,6 +180,25 @@ class GameEngine(
     /** When each coin was collected, for the little "pop" animation. `-1` = never. */
     val collectedAt = FloatArray(level.coins.size) { -1f }
 
+    // ---- creatures --------------------------------------------------------------
+
+    /** Live positions of the purple creatures. Indexed like [LevelData.enemies]. */
+    val enemyX = FloatArray(level.enemies.size)
+    val enemyY = FloatArray(level.enemies.size)
+
+    /** Which way each creature is walking: -1 left, +1 right. */
+    val enemyDirection = FloatArray(level.enemies.size)
+
+    /** `true` once a creature has been jumped on. */
+    val enemyDefeated = BooleanArray(level.enemies.size)
+
+    /** A creature standing on a ledge turns round at the edge; a floating one patrols. */
+    private val enemyOnGround = BooleanArray(level.enemies.size)
+    private val enemyHome = FloatArray(level.enemies.size)
+
+    val enemyWidth: Float get() = tuning.playerWidth * 0.95f
+    val enemyHeight: Float get() = tuning.playerHeight * 0.8f
+
     // ---- input ----------------------------------------------------------------
 
     var moveLeft: Boolean = false
@@ -196,6 +215,7 @@ class GameEngine(
 
     init {
         spawnPlayer()
+        placeEnemies()
     }
 
     /** Press the jump button. Buffered, so pressing just before landing still works. */
@@ -233,6 +253,41 @@ class GameEngine(
         deathCause = DeathCause.NONE
         timeRemaining = rules.timeLimitSeconds
         lavaSurfaceY = initialLavaSurface()
+        placeEnemies()
+    }
+
+    /**
+     * Stands each creature where it was drawn.
+     *
+     * A creature drawn on a ledge is dropped onto it so it walks the ledge; one drawn in
+     * mid-air stays there and paces back and forth, which is what somebody who drew it
+     * floating over a gap meant it to do.
+     */
+    private fun placeEnemies() {
+        level.enemies.forEach { enemy ->
+            val index = enemy.index
+            enemyDefeated[index] = false
+            enemyDirection[index] = if (index % 2 == 0) 1f else -1f
+            enemyX[index] = enemy.center.x
+            enemyHome[index] = enemy.center.x
+
+            // Look for a ledge under the mark; the drawing usually puts one there.
+            val col = floor(enemy.center.x).toInt()
+            var row = floor(enemy.center.y).toInt()
+            var found = -1
+            var searched = 0
+            while (searched < ENEMY_GROUND_SEARCH && row + 1 < level.rows) {
+                if (level.isSolid(col, row + 1) && !level.isSolid(col, row)) { found = row; break }
+                row++
+                searched++
+            }
+            enemyOnGround[index] = found >= 0 && mode.hasGravity
+            enemyY[index] = if (enemyOnGround[index]) {
+                found + 1f - enemyHeight / 2f
+            } else {
+                enemy.center.y
+            }
+        }
     }
 
     /** The flood waits just off the bottom edge of the page until its grace period is up. */
@@ -369,11 +424,79 @@ class GameEngine(
         val blockedY = moveVertically(velocityY * dt)
 
         updateGroundState()
+        moveEnemies(dt)
         checkCoins()
         advanceModeClocks(dt)
         checkCrash(blockedX, blockedY)
+        checkEnemies()
         checkHazards()
         checkGoal()
+    }
+
+    /**
+     * Creatures walk, turn at walls, and — when they are standing on something — turn at the
+     * edge of it rather than strolling off into the void.
+     */
+    private fun moveEnemies(dt: Float) {
+        val speed = tuning.moveSpeed * ENEMY_SPEED
+        for (index in level.enemies.indices) {
+            if (enemyDefeated[index]) continue
+
+            val direction = enemyDirection[index]
+            val next = enemyX[index] + direction * speed * dt
+            val nose = next + direction * enemyWidth / 2f
+
+            val row = floor(enemyY[index]).toInt()
+            val aheadCol = floor(nose).toInt()
+            val intoWall = level.isSolid(aheadCol, row)
+            val offLedge = enemyOnGround[index] &&
+                !level.isSolid(aheadCol, floor(enemyY[index] + enemyHeight / 2f + GROUND_PROBE).toInt())
+            // A floating creature has no ledge to keep it honest, so it paces a fixed beat.
+            val tooFar = !enemyOnGround[index] &&
+                abs(next - enemyHome[index]) > ENEMY_PATROL_CELLS * Tuning.scaleFor(level)
+
+            if (intoWall || offLedge || tooFar || nose < 0f || nose > level.width) {
+                enemyDirection[index] = -direction
+            } else {
+                enemyX[index] = next
+            }
+        }
+    }
+
+    /**
+     * Contact with a creature.
+     *
+     * Landing on one squashes it, everything else is fatal — the platformer bargain that
+     * turns a creature from an obstacle into something to aim at. Only games with gravity
+     * get the stomp: there is no "coming down on it" in a maze seen from above.
+     */
+    private fun checkEnemies() {
+        if (status != GameStatus.PLAYING) return
+        val forgiveness = tuning.playerWidth * HAZARD_FORGIVENESS_FRACTION
+        val left = playerX + forgiveness
+        val right = playerX + tuning.playerWidth - forgiveness
+        val top = playerY + forgiveness
+        val bottom = playerY + tuning.playerHeight - forgiveness
+
+        for (index in level.enemies.indices) {
+            if (enemyDefeated[index]) continue
+            val enemyLeft = enemyX[index] - enemyWidth / 2f
+            val enemyTop = enemyY[index] - enemyHeight / 2f
+            if (right <= enemyLeft || left >= enemyLeft + enemyWidth) continue
+            if (bottom <= enemyTop || top >= enemyTop + enemyHeight) continue
+
+            val stomped = mode.hasGravity &&
+                velocityY > 0f &&
+                bottom < enemyTop + enemyHeight * STOMP_DEPTH
+            if (stomped) {
+                enemyDefeated[index] = true
+                velocityY = -tuning.jumpSpeed * STOMP_BOUNCE
+                jumpBuffer = 0f
+            } else {
+                die(DeathCause.ENEMY)
+                return
+            }
+        }
     }
 
     private fun inputDirection(): Float =
@@ -693,6 +816,21 @@ class GameEngine(
 
         /** How far above the page a flyer may climb, in player heights. */
         const val CEILING_MARGIN = 3f
+
+        /** Creatures amble; they are an obstacle to time, not a race. */
+        const val ENEMY_SPEED = 0.3f
+
+        /** How far a creature drawn in mid-air paces either side of where it was drawn. */
+        const val ENEMY_PATROL_CELLS = 2.5f
+
+        /** How far below a creature to look for the ledge it was drawn standing on. */
+        const val ENEMY_GROUND_SEARCH = 4
+
+        /** The player's feet have to be in the top of a creature for it to count as a stomp. */
+        const val STOMP_DEPTH = 0.6f
+
+        /** A stomp bounces you back up this much of a jump. */
+        const val STOMP_BOUNCE = 0.75f
 
         /** Spiral-of-death guard: at most this many physics steps per rendered frame. */
         const val MAX_STEPS_PER_FRAME = 40

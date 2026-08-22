@@ -4,6 +4,7 @@ import com.paperjump.draw.DrawTool
 import com.paperjump.draw.DrawingState
 import com.paperjump.draw.Stroke
 import com.paperjump.draw.StrokePoint
+import com.paperjump.draw.erasedAt
 import com.paperjump.draw.touches
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -72,14 +73,44 @@ class DrawingStateTest {
     }
 
     @Test
-    fun `the eraser removes strokes it passes over and leaves the others`() {
+    fun `the eraser cuts a hole in a line instead of deleting it`() {
         val state = DrawingState().add(line).add(dot)
 
-        // Right on the horizontal line, far from the coin.
-        val erased = state.erasingAt(0.5f, 0.5f, radius = 0.02f)
-        assertEquals(listOf(dot), erased.strokes)
+        // Right on the middle of the horizontal line, far from the coin.
+        val erased = state.erasingAt(0.5f, 0.5f, radius = 0.05f)
 
-        // Nowhere near anything.
+        assertEquals("the line should be in two pieces, the coin untouched", 3, erased.strokes.size)
+        assertTrue("the coin is not under the eraser", dot in erased.strokes)
+
+        val pieces = erased.strokes.filter { it != dot }
+        assertEquals(2, pieces.size)
+        // The left piece runs from the start of the line up to the rim of the eraser, and
+        // the right piece from the far rim onwards. Neither may cross the hole.
+        assertEquals(0.1f, pieces[0].points.first().x, 0.001f)
+        assertTrue("left piece must stop before the eraser", pieces[0].points.last().x < 0.5f)
+        assertTrue("right piece must start after the eraser", pieces[1].points.first().x > 0.5f)
+        assertEquals(0.9f, pieces[1].points.last().x, 0.001f)
+    }
+
+    @Test
+    fun `erasing the end of a line shortens it and leaves one piece`() {
+        val erased = DrawingState().add(line).erasingAt(0.9f, 0.5f, radius = 0.05f)
+
+        assertEquals(1, erased.strokes.size)
+        val survivor = erased.strokes.single()
+        assertEquals(0.1f, survivor.points.first().x, 0.001f)
+        assertTrue("the far end should have been rubbed away", survivor.points.last().x < 0.87f)
+    }
+
+    @Test
+    fun `a dot under the eraser goes entirely`() {
+        val erased = DrawingState().add(line).add(dot).erasingAt(0.5f, 0.2f, radius = 0.02f)
+        assertEquals(listOf(line), erased.strokes)
+    }
+
+    @Test
+    fun `the eraser leaves a stroke it only passes near`() {
+        val state = DrawingState().add(line).add(dot)
         val untouched = state.erasingAt(0.05f, 0.95f, radius = 0.02f)
         assertEquals(state.strokes, untouched.strokes)
     }
@@ -113,15 +144,19 @@ class DrawingStateTest {
     }
 
     @Test
-    fun `undo brings back everything one eraser stroke removed`() {
-        // Two strokes crossing the same spot: the eraser takes both, so undo owes both back.
+    fun `one sweep is one undo, however much it rubbed out`() {
+        // What the controller does: carve a working copy as the finger moves, commit once.
         val across = stroke(points = arrayOf(0.5f to 0.1f, 0.5f to 0.9f))
         val drawn = DrawingState().add(line).add(across).add(dot)
 
-        val erased = drawn.erasingAt(0.5f, 0.5f, radius = 0.02f)
-        assertEquals("both crossing strokes should be gone", listOf(dot), erased.strokes)
+        var swept = drawn.strokes
+        listOf(0.44f, 0.47f, 0.5f, 0.53f, 0.56f).forEach { x ->
+            swept = swept.erasedAt(x, 0.5f, radius = 0.03f)
+        }
+        val erased = drawn.replacingStrokes(swept)
 
-        assertEquals("undo must restore the whole gesture", drawn.strokes, erased.undo().strokes)
+        assertTrue("both crossing strokes should be cut", erased.strokes.size > drawn.strokes.size)
+        assertEquals("undo must restore the whole sweep", drawn.strokes, erased.undo().strokes)
     }
 
     @Test
@@ -129,11 +164,11 @@ class DrawingStateTest {
         val state = DrawingState()
             .add(line)
             .add(dot)
-            .erasingAt(0.5f, 0.5f, radius = 0.02f) // removes the line
+            .erasingAt(0.5f, 0.5f, radius = 0.05f) // cuts the line in two
             .cleared()
 
         assertTrue(state.isEmpty)
-        assertEquals("undo the clear", listOf(dot), state.undo().strokes)
+        assertEquals("undo the clear", 3, state.undo().strokes.size)
         assertEquals("undo the erase", listOf(line, dot), state.undo().undo().strokes)
         assertEquals("undo the dot", listOf(line), state.undo().undo().undo().strokes)
         assertTrue("and back to blank paper", state.undo().undo().undo().undo().isEmpty)

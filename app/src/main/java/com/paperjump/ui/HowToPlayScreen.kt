@@ -29,6 +29,7 @@ import com.paperjump.game.Twist
 import com.paperjump.ui.components.ScreenHeader
 import com.paperjump.ui.components.SectionLabel
 import com.paperjump.ui.theme.CoinGold
+import com.paperjump.ui.theme.CreatureViolet
 import com.paperjump.ui.theme.InkBlack
 import com.paperjump.ui.theme.LavaRed
 import com.paperjump.ui.theme.SkyBlue
@@ -54,6 +55,7 @@ fun HowToPlayScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                 LegendRow(CoinGold, "Yellow", "Coins to collect")
                 LegendRow(SpringGreen, "Green", "Where you start")
                 LegendRow(SkyBlue, "Blue", "The flag — reach it to win")
+                LegendRow(CreatureViolet, "Purple", "Creatures that patrol and hurt on contact")
             }
 
             SectionLabel("The games")
@@ -103,6 +105,12 @@ fun HowToPlayScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                 }
             }
 
+            SectionLabel("Creatures")
+            Card {
+                Bullet("A purple mark becomes a creature. Drawn on a ledge it walks that ledge, turning round at the ends; drawn in mid-air it paces on the spot.")
+                Bullet("In the platformer and the runner you can jump on one to squash it, and you bounce off. Anywhere else, touching one ends the run.")
+            }
+
             SectionLabel("Controls")
             Card {
                 Bullet("Platformer: hold left or right to run; tap jump for a small hop, hold it for a full jump.")
@@ -119,7 +127,8 @@ fun HowToPlayScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                 Bullet("A jump clears about a quarter of the page's width and a fifth of its height. Gaps wider than that cannot be crossed.")
                 Bullet("Colour dots need to be a few cells across — a tiny speck is treated as noise on purpose.")
                 Bullet("Drawing the green start dot on a platform is fine — the ground is rebuilt underneath it.")
-                Bullet("Lines meant to be level are straightened automatically; a deliberate slope is kept.")
+                Bullet("Lines are read as lines: the wobble in a hand-drawn ledge is smoothed out, a line meant to be level comes out level, and a deliberate slope stays a slope.")
+                Bullet("Land on top of a purple creature to squash it. Walk into one and the run is over.")
                 Bullet("If the detector reads something wrong, \"Adjust the reading\" on the game screen will usually fix it.")
             }
 

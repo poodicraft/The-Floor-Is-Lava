@@ -3,6 +3,7 @@ package com.paperjump
 import com.paperjump.data.LevelMetaCodec
 import com.paperjump.data.LevelRecord
 import com.paperjump.data.LevelSource
+import com.paperjump.data.PlayerStats
 import com.paperjump.data.RecordCodec
 import com.paperjump.data.RecordKey
 import com.paperjump.data.SavedLevelMeta
@@ -148,5 +149,28 @@ class PersistenceCodecTest {
         assertTrue(record.isNewBestTime(9.9f))
         assertTrue(!record.isNewBestTime(10.1f))
         assertTrue("anything beats never having finished", LevelRecord().isNewBestTime(999f))
+    }
+
+    @Test
+    fun `stats add up across modes without counting a level twice`() {
+        val records = mapOf(
+            RecordKey("aaa", GameSetup(GameMode.PLATFORMER)) to LevelRecord(plays = 5, wins = 2, bestTimeSeconds = 12.5f),
+            RecordKey("aaa", GameSetup(GameMode.RUNNER)) to LevelRecord(plays = 3, wins = 1, bestTimeSeconds = 9.0f),
+            RecordKey("bbb", GameSetup(GameMode.MAZE)) to LevelRecord(plays = 4, wins = 0),
+        )
+
+        val stats = PlayerStats.of(records)
+
+        assertEquals(12, stats.runs)
+        assertEquals(3, stats.wins)
+        assertEquals("one drawing beaten two ways is still one level", 1, stats.levelsBeaten)
+        assertEquals(9.0f, stats.bestTimeSeconds!!, 0.001f)
+    }
+
+    @Test
+    fun `an empty scoreboard has nothing to show`() {
+        val stats = PlayerStats.of(emptyMap())
+        assertEquals(false, stats.hasPlayed)
+        assertEquals(null, stats.bestTimeSeconds)
     }
 }

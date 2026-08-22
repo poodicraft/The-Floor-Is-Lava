@@ -32,8 +32,15 @@ class DrawingController(initial: DrawingState = DrawingState()) {
     /** Points of the stroke currently under the finger, in paper space. */
     val livePoints = mutableStateListOf<StrokePoint>()
 
-    /** Strokes the in-progress eraser sweep will remove; hidden while it is in progress. */
-    val pendingErase = mutableStateListOf<Int>()
+    /**
+     * The drawing as the in-progress eraser sweep has left it, or `null` when not erasing.
+     *
+     * The sweep works on this copy and commits once, at the end: carving the document
+     * itself on every finger sample would push a history entry per sample, so undoing one
+     * swipe would take a hundred taps.
+     */
+    var eraseDraft: List<Stroke>? by mutableStateOf(null)
+        private set
 
     private var liveTool: DrawTool = DrawTool.INK
     private var liveWidth: Float = DrawTool.INK.defaultWidth
@@ -50,7 +57,7 @@ class DrawingController(initial: DrawingState = DrawingState()) {
 
     fun begin(x: Float, y: Float) {
         if (tool.isEraser) {
-            pendingErase.clear()
+            eraseDraft = document.strokes
             eraseAt(x, y)
             return
         }
@@ -76,8 +83,8 @@ class DrawingController(initial: DrawingState = DrawingState()) {
 
     fun end() {
         if (tool.isEraser || liveTool.isEraser) {
-            document = document.removingIndices(pendingErase.toSet())
-            pendingErase.clear()
+            eraseDraft?.let { document = document.replacingStrokes(it) }
+            eraseDraft = null
             return
         }
         if (livePoints.isNotEmpty()) {
@@ -91,9 +98,11 @@ class DrawingController(initial: DrawingState = DrawingState()) {
 
     private fun eraseAt(x: Float, y: Float) {
         liveTool = DrawTool.ERASER
-        document.strokeIndicesAt(x, y, eraseRadius).forEach { index ->
-            if (index !in pendingErase) pendingErase += index
-        }
+        val before = eraseDraft ?: document.strokes
+        val after = before.erasedAt(x, y, eraseRadius)
+        // Same list back means the eraser passed over blank paper; leave the state alone so
+        // the canvas is not asked to redraw for nothing.
+        if (after !== before) eraseDraft = after
     }
 
     /** The stroke being drawn right now, for the live preview. */
@@ -104,12 +113,8 @@ class DrawingController(initial: DrawingState = DrawingState()) {
             Stroke(liveTool, liveWidth, livePoints.toList())
         }
 
-    /** Strokes to paint, with anything the eraser is about to take already hidden. */
-    fun visibleStrokes(): List<Stroke> {
-        if (pendingErase.isEmpty()) return document.strokes
-        val doomed = pendingErase.toSet()
-        return document.strokes.filterIndexed { index, _ -> index !in doomed }
-    }
+    /** Strokes to paint, with whatever the eraser has rubbed out already gone. */
+    fun visibleStrokes(): List<Stroke> = eraseDraft ?: document.strokes
 
     private companion object {
         const val MIN_SAMPLE_DISTANCE = 0.0025f

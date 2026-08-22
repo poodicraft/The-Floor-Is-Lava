@@ -166,6 +166,9 @@ enum class DeathCause {
     /** Touched red ink. */
     LAVA,
 
+    /** Walked into one of the purple creatures. */
+    ENEMY,
+
     /** Fell off the bottom of the page. */
     FELL,
 

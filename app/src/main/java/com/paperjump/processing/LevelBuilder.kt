@@ -55,6 +55,7 @@ object LevelBuilder {
     private const val HUE_YELLOW = 50f
     private const val HUE_GREEN = 130f
     private const val HUE_BLUE = 215f
+    private const val HUE_PURPLE = 288f
 
     /** Cells lit dimmer than this can never be a colour (a shadow is not a marker). */
     private const val MIN_COLOR_VALUE = 46
@@ -99,7 +100,7 @@ object LevelBuilder {
             when (cells[index]) {
                 CellType.SOLID -> true
                 // Lava is deliberately not solid: you die in it rather than stand on it.
-                CellType.SPAWN, CellType.COIN, CellType.GOAL -> inkUnder[index]
+                CellType.SPAWN, CellType.COIN, CellType.GOAL, CellType.ENEMY -> inkUnder[index]
                 else -> false
             }
         }
@@ -120,14 +121,13 @@ object LevelBuilder {
         // looks at the shape of the level.
         bridgeMarks(solid, cells, cols, rows)
 
-        if (config.straightenLines) {
-            straightenLines(solid, cols, rows)
-            // Lava is drawn by the same hand as the platforms and wobbles just as much.
-            straightenLines(hazard, cols, rows)
-        }
+        // Read the ink as lines rather than as cells. Lava goes through the same pass: it is
+        // drawn by the same hand as the platforms and wobbles just as much.
+        val solidLines = if (config.straightenLines) vectorise(solid, cols, rows) else null
+        val hazardLines = if (config.straightenLines) vectorise(hazard, cols, rows) else null
 
-        val platforms = mergeRects(solid, cols, rows)
-        val hazardRects = mergeRects(hazard, cols, rows)
+        val platforms = mergeRects(leftover(solid, solidLines), cols, rows)
+        val hazardRects = mergeRects(leftover(hazard, hazardLines), cols, rows)
 
         val coins = blobs
             .filter { it.type == CellType.COIN && it.size >= config.minBlobCells }
@@ -137,6 +137,17 @@ object LevelBuilder {
                     index = index,
                     center = Vec2(blob.centerX, blob.centerY),
                     radius = (min(blob.width, blob.height) / 2f).coerceIn(0.35f, 1.4f),
+                )
+            }
+
+        val enemies = blobs
+            .filter { it.type == CellType.ENEMY && it.size >= config.minBlobCells }
+            .sortedWith(compareBy({ it.centerX }, { it.centerY }))
+            .mapIndexed { index, blob ->
+                Enemy(
+                    index = index,
+                    center = Vec2(blob.centerX, blob.centerY),
+                    radius = (min(blob.width, blob.height) / 2f).coerceIn(0.4f, 2f),
                 )
             }
 
@@ -172,8 +183,15 @@ object LevelBuilder {
             spawn = spawn,
             goal = goal,
             warnings = warnings,
+            enemies = enemies,
+            platformStrokes = solidLines?.strokes.orEmpty(),
+            hazardStrokes = hazardLines?.strokes.orEmpty(),
         )
     }
+
+    /** The cells a vectorising pass did not claim, which still have to be drawn as blocks. */
+    private fun leftover(mask: BooleanArray, lines: Vectorised?): BooleanArray =
+        if (lines == null) mask else BooleanArray(mask.size) { mask[it] && !lines.covered[it] }
 
     // ---------------------------------------------------------------- downsampling
 
@@ -338,6 +356,7 @@ object LevelBuilder {
             CellType.COIN to HUE_YELLOW,
             CellType.SPAWN to HUE_GREEN,
             CellType.GOAL to HUE_BLUE,
+            CellType.ENEMY to HUE_PURPLE,
         ).forEach { (type, reference) ->
             val distance = hueDistance(hue, reference)
             if (distance < bestDistance) {
@@ -356,7 +375,8 @@ object LevelBuilder {
     // ---------------------------------------------------------------- marks over ink
 
     private fun CellType.isMark(): Boolean =
-        this == CellType.SPAWN || this == CellType.COIN || this == CellType.GOAL
+        this == CellType.SPAWN || this == CellType.COIN ||
+            this == CellType.GOAL || this == CellType.ENEMY
 
     /**
      * Restores ground that a marker colour painted over.
@@ -418,24 +438,263 @@ object LevelBuilder {
     /** How wide a mark can be and still have the ground rebuilt under it. */
     private const val MAX_BRIDGE_CELLS = 14
 
-    // ---------------------------------------------------------------- straightening
+    // ---------------------------------------------------------------- vectorising ink
 
     /**
-     * Snaps *nearly* straight runs of ink to exactly straight bars.
+     * The result of reading a mask as **lines** instead of as cells.
      *
-     * Nobody draws a level line straight by hand, and the wobble is not a feature: a
-     * platform that sags by a cell reads as a bug, and a slightly tilted one turns into a
-     * staircase the player trips up. This flattens a run that was clearly *meant* to be
-     * straight while leaving a deliberate ramp alone — the difference being how far the
-     * line drifts over its own length.
+     * @param strokes one entry per straight run the detector recognised
+     * @param covered the cells those strokes now occupy, so the caller can tell what is
+     *   left over and still has to be drawn as plain blocks
      */
-    internal fun straightenLines(solid: BooleanArray, cols: Int, rows: Int) {
-        val components = solidComponents(solid, cols, rows)
-        components.forEach { component ->
-            straightenComponent(component, solid, cols, rows, horizontal = true) ||
-                straightenComponent(component, solid, cols, rows, horizontal = false)
+    internal class Vectorised(val strokes: List<LevelStroke>, val covered: BooleanArray)
+
+    /**
+     * Turns runs of ink into clean lines, in place.
+     *
+     * This is the difference between a level that looks drawn and a level that looks like a
+     * scan of a drawing. A hand-drawn ledge is never straight and never an even thickness:
+     * read cell by cell it becomes a staircase of little blocks that the player trips over,
+     * with a bulge wherever the pen paused. So each run of ink is reduced to its **spine**,
+     * the spine is simplified to a handful of vertices, and the ink is then redrawn from
+     * those vertices at an even thickness. What comes back is the line the hand was aiming
+     * for: straight where it meant to be straight, bent where it meant to bend.
+     *
+     * Only things that actually read as lines are touched. A filled shape, a blob or a
+     * scribble has no meaningful spine, so it is left exactly as drawn and the caller keeps
+     * rendering it as blocks.
+     */
+    internal fun vectorise(mask: BooleanArray, cols: Int, rows: Int): Vectorised {
+        val covered = BooleanArray(mask.size)
+        val strokes = mutableListOf<LevelStroke>()
+
+        solidComponents(mask, cols, rows).forEach { component ->
+            val traced = traceComponent(component, cols, rows) ?: return@forEach
+            component.forEach { mask[it] = false }
+            traced.forEach { stroke ->
+                strokes += stroke
+                stampStroke(mask, covered, cols, rows, stroke)
+            }
+        }
+        return Vectorised(strokes, covered)
+    }
+
+    /**
+     * Reads one connected run of ink as a polyline, or returns `null` if it is not a line.
+     *
+     * The guards are the whole job: applied carelessly this would bulldoze a drawing's
+     * structure into bars. A run qualifies only when it is long, thin, unbroken along its
+     * own axis, and free of the lumps that mean "this is a shape, not a stroke".
+     */
+    private fun traceComponent(component: List<Int>, cols: Int, rows: Int): List<LevelStroke>? {
+        if (component.size < MIN_LINE_CELLS) return null
+
+        val minCol = component.minOf { it % cols }
+        val maxCol = component.maxOf { it % cols }
+        val minRow = component.minOf { it / cols }
+        val maxRow = component.maxOf { it / cols }
+        val spanX = maxCol - minCol + 1
+        val spanY = maxRow - minRow + 1
+
+        // Measure along whichever way the run is longer; across the other.
+        val horizontal = spanX >= spanY
+        val length = if (horizontal) spanX else spanY
+        if (length < MIN_LINE_LENGTH) return null
+
+        val minAlong = if (horizontal) minCol else minRow
+        val sums = IntArray(length)
+        val counts = IntArray(length)
+        component.forEach { index ->
+            val col = index % cols
+            val row = index / cols
+            val slot = (if (horizontal) col else row) - minAlong
+            sums[slot] += if (horizontal) row else col
+            counts[slot]++
+        }
+
+        val thickness = medianOf(counts.filter { it > 0 })
+        if (thickness > MAX_LINE_THICKNESS) return null
+        // Long *and* thin. A square patch of ink is a drawing, not a platform.
+        if (length < thickness * MIN_LINE_ASPECT) return null
+        // A lump — a blob hanging off the run — means the spine is not the whole story.
+        if (counts.max() > thickness * 3 + 2) return null
+
+        val spine = FloatArray(length)
+        var gap = 0
+        for (slot in 0 until length) {
+            if (counts[slot] > 0) {
+                spine[slot] = sums[slot].toFloat() / counts[slot]
+                gap = 0
+            } else {
+                // A short break is the pen skipping; a long one means this run doubles back
+                // on itself and reading it as one line along this axis would be a fiction.
+                if (++gap > MAX_LINE_GAP) return null
+                spine[slot] = Float.NaN
+            }
+        }
+        fillGaps(spine)
+
+        val vertices = simplify(spine, tolerance = max(MIN_LINE_TOLERANCE, thickness * 0.5f))
+
+        // A run that came back as a single straight piece and barely leans was meant to be
+        // level: snap it exactly level, because a ledge that sags by half a cell reads as a
+        // mistake. A steeper one is a ramp somebody drew on purpose and is left at its angle.
+        if (vertices.size == 2) {
+            val slope = abs(spine[length - 1] - spine[0]) / (length - 1).coerceAtLeast(1)
+            if (slope <= MAX_LEVEL_SLOPE) {
+                val level = spine.average().toFloat()
+                spine[0] = level
+                spine[length - 1] = level
+            }
+        }
+
+        val thicknessUnits = thickness.toFloat()
+        return (0 until vertices.size - 1).map { i ->
+            val a = vertices[i]
+            val b = vertices[i + 1]
+            LevelStroke(
+                x1 = worldAlong(horizontal, minAlong + a, spine[a]).first,
+                y1 = worldAlong(horizontal, minAlong + a, spine[a]).second,
+                x2 = worldAlong(horizontal, minAlong + b, spine[b]).first,
+                y2 = worldAlong(horizontal, minAlong + b, spine[b]).second,
+                thickness = thicknessUnits,
+            )
         }
     }
+
+    /** Cell indices to a world point, in whichever order this run is being read. */
+    private fun worldAlong(horizontal: Boolean, along: Int, across: Float): Pair<Float, Float> =
+        if (horizontal) (along + 0.5f) to (across + 0.5f) else (across + 0.5f) to (along + 0.5f)
+
+    /** Straight-line interpolation across the short breaks left by [traceComponent]. */
+    private fun fillGaps(spine: FloatArray) {
+        var index = 0
+        while (index < spine.size) {
+            if (!spine[index].isNaN()) { index++; continue }
+            val start = index
+            while (index < spine.size && spine[index].isNaN()) index++
+            val before = if (start > 0) spine[start - 1] else spine.getOrNull(index) ?: 0f
+            val after = if (index < spine.size) spine[index] else before
+            for (slot in start until index) {
+                val t = (slot - start + 1).toFloat() / (index - start + 1)
+                spine[slot] = before + (after - before) * t
+            }
+        }
+    }
+
+    /**
+     * Ramer–Douglas–Peucker: keeps only the vertices that carry the shape.
+     *
+     * A hundred sampled points along a wobbling pen stroke become two if it was meant to be
+     * one straight line, three if it turns a corner, a handful if it curves — which is
+     * exactly the difference between a level that looks drawn and one that looks digitised.
+     */
+    internal fun simplify(spine: FloatArray, tolerance: Float): List<Int> {
+        if (spine.size < 3) return spine.indices.toList()
+        val keep = BooleanArray(spine.size)
+        keep[0] = true
+        keep[spine.size - 1] = true
+        simplifyBetween(spine, 0, spine.size - 1, tolerance, keep)
+        return spine.indices.filter { keep[it] }
+    }
+
+    private fun simplifyBetween(
+        spine: FloatArray,
+        first: Int,
+        last: Int,
+        tolerance: Float,
+        keep: BooleanArray,
+    ) {
+        if (last <= first + 1) return
+        val slope = (spine[last] - spine[first]) / (last - first)
+        var worst = first
+        var worstDistance = 0f
+        for (index in first + 1 until last) {
+            val distance = abs(spine[index] - (spine[first] + slope * (index - first)))
+            if (distance > worstDistance) {
+                worstDistance = distance
+                worst = index
+            }
+        }
+        if (worstDistance <= tolerance) return
+        keep[worst] = true
+        simplifyBetween(spine, first, worst, tolerance, keep)
+        simplifyBetween(spine, worst, last, tolerance, keep)
+    }
+
+    private fun medianOf(values: List<Int>): Int =
+        if (values.isEmpty()) 1 else values.sorted()[values.size / 2]
+
+    /** Redraws one line into the mask at an even thickness, as a capsule. */
+    private fun stampStroke(
+        mask: BooleanArray,
+        covered: BooleanArray,
+        cols: Int,
+        rows: Int,
+        stroke: LevelStroke,
+    ) {
+        val radius = max(0.5f, stroke.thickness / 2f)
+        val dx = stroke.x2 - stroke.x1
+        val dy = stroke.y2 - stroke.y1
+        val distance = kotlin.math.sqrt(dx * dx + dy * dy)
+        val steps = max(1, ceil(distance / 0.35f).toInt())
+        for (step in 0..steps) {
+            val t = step.toFloat() / steps
+            stamp(mask, covered, cols, rows, stroke.x1 + dx * t, stroke.y1 + dy * t, radius)
+        }
+    }
+
+    private fun stamp(
+        mask: BooleanArray,
+        covered: BooleanArray,
+        cols: Int,
+        rows: Int,
+        centerX: Float,
+        centerY: Float,
+        radius: Float,
+    ) {
+        val minCol = max(0, floorToInt(centerX - radius))
+        val maxCol = min(cols - 1, floorToInt(centerX + radius))
+        val minRow = max(0, floorToInt(centerY - radius))
+        val maxRow = min(rows - 1, floorToInt(centerY + radius))
+        val radiusSquared = radius * radius
+        for (row in minRow..maxRow) {
+            for (col in minCol..maxCol) {
+                val dx = col + 0.5f - centerX
+                val dy = row + 0.5f - centerY
+                if (dx * dx + dy * dy > radiusSquared) continue
+                val index = row * cols + col
+                mask[index] = true
+                covered[index] = true
+            }
+        }
+    }
+
+    private fun floorToInt(value: Float): Int {
+        val truncated = value.toInt()
+        return if (value < 0f && value != truncated.toFloat()) truncated - 1 else truncated
+    }
+
+    /** Fewer cells than this is a dot or a corner, not a stroke. */
+    private const val MIN_LINE_CELLS = 8
+
+    /** Runs shorter than this are punctuation, and redrawing them would only move them. */
+    private const val MIN_LINE_LENGTH = 5
+
+    /** Anything fatter is a filled shape, and its spine would be meaningless. */
+    private const val MAX_LINE_THICKNESS = 9
+
+    /** A stroke has to be at least this many times longer than it is thick. */
+    private const val MIN_LINE_ASPECT = 2.6f
+
+    /** The pen may skip this many steps and still be read as one continuous line. */
+    private const val MAX_LINE_GAP = 3
+
+    /** Never simplify to less than half a cell: below that there is nothing to gain. */
+    private const val MIN_LINE_TOLERANCE = 0.6f
+
+    /** ~11°. Below this a line reads as "meant to be level" and is snapped exactly level. */
+    private const val MAX_LEVEL_SLOPE = 0.2f
 
     /** One connected run of ink, as the cell indices it occupies. */
     private fun solidComponents(solid: BooleanArray, cols: Int, rows: Int): List<List<Int>> {
@@ -471,98 +730,6 @@ object LevelBuilder {
         }
         return components
     }
-
-    /**
-     * Flattens one component along the given axis, returning whether it did.
-     *
-     * The guards matter more than the flattening: applied carelessly this would bulldoze
-     * a drawing's structure into bars. A run is only straightened when it is long, thin,
-     * unbroken, and drifts across its length by less than [MAX_STRAIGHTEN_SLOPE].
-     */
-    private fun straightenComponent(
-        component: List<Int>,
-        solid: BooleanArray,
-        cols: Int,
-        rows: Int,
-        horizontal: Boolean,
-    ): Boolean {
-        // Along = the axis the line runs down; across = its thickness.
-        fun along(index: Int) = if (horizontal) index % cols else index / cols
-        fun across(index: Int) = if (horizontal) index / cols else index % cols
-
-        val minAlong = component.minOf(::along)
-        val maxAlong = component.maxOf(::along)
-        val length = maxAlong - minAlong + 1
-        if (length < MIN_STRAIGHTEN_LENGTH) return false
-
-        val minAcross = component.minOf(::across)
-        val maxAcross = component.maxOf(::across)
-        val breadth = maxAcross - minAcross + 1
-        if (breadth >= length) return false
-
-        // Mean position across the line, per step along it. A gap means this is not one
-        // continuous run and flattening it would invent ink that was never drawn.
-        val sums = IntArray(length)
-        val counts = IntArray(length)
-        component.forEach { index ->
-            val slot = along(index) - minAlong
-            sums[slot] += across(index)
-            counts[slot]++
-        }
-        if (counts.any { it == 0 }) return false
-
-        val thickness = counts.sorted()[counts.size / 2]
-        if (thickness > MAX_STRAIGHTEN_THICKNESS) return false
-        if (counts.max() > thickness * 3 + 2) return false
-
-        val spine = FloatArray(length) { sums[it].toFloat() / counts[it] }
-
-        // A staircase is a line somebody meant to be crooked, and it is recognisable by
-        // *how* it descends: in abrupt steps, rather than drifting. Anything that steps is
-        // left exactly as drawn; everything else gets flattened, however far it leans,
-        // because a line that was meant to be level should come out level.
-        for (step in 0 until length - 1) {
-            if (abs(spine[step + 1] - spine[step]) >= STEP_HEIGHT) return false
-        }
-
-        // A steep, smooth diagonal is a deliberate ramp rather than a wobble.
-        val drift = spine.max() - spine.min()
-        if (drift > length * MAX_STRAIGHTEN_SLOPE) return false
-
-        val centre = (spine.average() - (thickness - 1) / 2.0).roundToInt()
-        val top = centre.coerceIn(0, (if (horizontal) rows else cols) - thickness)
-
-        component.forEach { solid[it] = false }
-        for (step in 0 until length) {
-            for (offset in 0 until thickness) {
-                val a = minAlong + step
-                val b = top + offset
-                val index = if (horizontal) b * cols + a else a * cols + b
-                if (index in solid.indices) solid[index] = true
-            }
-        }
-        return true
-    }
-
-    /** Runs shorter than this are dots and corners, not platforms. */
-    private const val MIN_STRAIGHTEN_LENGTH = 6
-
-    /** Anything fatter is a filled shape, not a line. */
-    private const val MAX_STRAIGHTEN_THICKNESS = 6
-
-    /**
-     * ~29°. Below this a line reads as "meant to be level" and is flattened; above it, the
-     * lean is clearly deliberate and is kept.
-     */
-    private const val MAX_STRAIGHTEN_SLOPE = 0.55f
-
-    /**
-     * A jump this big between neighbouring columns is a step, not a wobble.
-     *
-     * One is enough to call the whole run a staircase: a hand-drawn level line strays by a
-     * fraction of a cell between neighbours, never by a cell and a half.
-     */
-    private const val STEP_HEIGHT = 1.5f
 
     // ---------------------------------------------------------------- denoising
 

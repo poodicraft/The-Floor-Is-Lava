@@ -201,9 +201,10 @@ fun LevelTuneScreen(
                 onCheckedChange = { onConfigChange(config.copy(straightenLines = it)) },
             )
             Column {
-                Text("Straighten wobbly lines", style = MaterialTheme.typography.bodyMedium)
+                Text("Read the ink as lines", style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "Snaps nearly-level lines flat. Deliberate slopes are left alone.",
+                    text = "Redraws each run of ink as a clean line instead of following " +
+                        "every wobble. Deliberate slopes and corners are kept.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -274,9 +275,9 @@ private fun DetectionSummary(level: LevelData) {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        SummaryTile("Platforms", level.platforms.size.toString(), Modifier.weight(1f))
+        SummaryTile("Lines", level.lineCount.toString(), Modifier.weight(1f))
         SummaryTile("Coins", level.coins.size.toString(), Modifier.weight(1f))
-        SummaryTile("Lava", level.hazards.size.toString(), Modifier.weight(1f))
+        SummaryTile("Creatures", level.enemies.size.toString(), Modifier.weight(1f))
         SummaryTile("Grid", "${level.cols}×${level.rows}", Modifier.weight(1f))
     }
 }

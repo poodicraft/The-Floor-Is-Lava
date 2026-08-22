@@ -28,7 +28,8 @@ enum class DrawTool(
     COIN("Coin", "Collect these", 0.034f),
     SPAWN("Start", "Where you appear", 0.050f),
     GOAL("Flag", "Reach it to win", 0.050f),
-    ERASER("Eraser", "Remove strokes", 0.060f),
+    ENEMY("Creature", "Patrols, and bites", 0.044f),
+    ERASER("Eraser", "Rub out any part", 0.060f),
     ;
 
     val isEraser: Boolean get() = this == ERASER
@@ -81,32 +82,26 @@ data class DrawingState(
     fun cleared(): DrawingState = if (isEmpty) this else commit(emptyList())
 
     /**
-     * Erases every stroke passing within [radius] of ([x], [y]).
+     * Rubs out only the part of the drawing under the eraser at ([x], [y]).
      *
-     * Whole strokes go at once rather than being cut in half: with strokes this short it is
-     * what people expect from a sketchpad, and it cannot leave a sliver of red ink behind
-     * that quietly kills the player later.
+     * A stroke crossing the eraser is *cut*, leaving whatever was outside it: rubbing the
+     * middle out of a long line leaves two shorter lines, exactly like a real eraser and
+     * unlike deleting the object you happened to touch.
      */
     fun erasingAt(x: Float, y: Float, radius: Float): DrawingState {
-        val survivors = strokes.filterNot { it.touches(x, y, radius) }
+        val remaining = strokes.erasedAt(x, y, radius)
         // Dragging the eraser across blank paper must not fill the history with no-ops.
-        return if (survivors.size == strokes.size) this else commit(survivors)
+        return if (remaining === strokes) this else commit(remaining)
     }
 
-    /** Indices of every stroke under the eraser at ([x], [y]). */
-    fun strokeIndicesAt(x: Float, y: Float, radius: Float): List<Int> =
-        strokes.indices.filter { strokes[it].touches(x, y, radius) }
-
     /**
-     * Removes the given strokes in one undoable step.
+     * Replaces the whole drawing in one undoable step.
      *
-     * This is what an eraser *drag* commits at the end of the gesture. Erasing stroke by
-     * stroke as the finger moves would work, but it would push one history entry per
-     * stroke, so undoing a single sweep could take a dozen taps.
+     * This is what an eraser *sweep* commits at the end of the gesture: the sweep carves a
+     * working copy as the finger moves, and lands here once, so one sweep is one undo.
      */
-    fun removingIndices(indices: Set<Int>): DrawingState =
-        if (indices.isEmpty()) this
-        else commit(strokes.filterIndexed { index, _ -> index !in indices })
+    fun replacingStrokes(next: List<Stroke>): DrawingState =
+        if (next == strokes) this else commit(next)
 
     fun undo(): DrawingState =
         if (past.isEmpty()) this
@@ -129,6 +124,103 @@ data class DrawingState(
         const val MAX_HISTORY = 50
     }
 }
+
+/**
+ * Applies one dab of the eraser to a whole drawing.
+ *
+ * Returns the *same list* when nothing was touched, which is what lets a sweep across blank
+ * paper cost nothing and leave the undo history alone.
+ */
+internal fun List<Stroke>.erasedAt(x: Float, y: Float, radius: Float): List<Stroke> {
+    if (none { it.touches(x, y, radius) }) return this
+    val remaining = mutableListOf<Stroke>()
+    forEach { stroke ->
+        if (stroke.touches(x, y, radius)) remaining += stroke.cutBy(x, y, radius) else remaining += stroke
+    }
+    return remaining
+}
+
+/**
+ * Cuts one stroke where the eraser crosses it, returning the pieces that survive.
+ *
+ * The cut is exact rather than sampled: each segment is intersected with the eraser's
+ * circle analytically, so the surviving ends stop precisely at its rim however sparsely the
+ * finger was sampled while drawing.
+ */
+internal fun Stroke.cutBy(centerX: Float, centerY: Float, radius: Float): List<Stroke> {
+    // The eraser takes the stroke's whole width, or a fat lava line would leave a red
+    // fringe behind that quietly kills the player later.
+    val reach = radius + width / 2f
+
+    if (points.size == 1) {
+        val only = points.first()
+        val dx = only.x - centerX
+        val dy = only.y - centerY
+        return if (dx * dx + dy * dy <= reach * reach) emptyList() else listOf(this)
+    }
+
+    val pieces = mutableListOf<Stroke>()
+    var run = mutableListOf<StrokePoint>()
+
+    fun flush() {
+        if (run.size >= 2) pieces += copy(points = run.toList())
+        run = mutableListOf()
+    }
+
+    for (i in 0 until points.size - 1) {
+        val a = points[i]
+        val b = points[i + 1]
+        val span = circleSpan(a, b, centerX, centerY, reach)
+        if (span == null) {
+            if (run.isEmpty()) run += a
+            run += b
+            continue
+        }
+        val (enter, exit) = span
+        if (enter > 0f) {
+            if (run.isEmpty()) run += a
+            run += pointAlong(a, b, enter)
+        }
+        flush()
+        if (exit < 1f) {
+            run += pointAlong(a, b, exit)
+            run += b
+        }
+    }
+    flush()
+    return pieces
+}
+
+/** Where segment `a..b` enters and leaves a circle, as fractions of it, or `null` if it misses. */
+private fun circleSpan(
+    a: StrokePoint,
+    b: StrokePoint,
+    centerX: Float,
+    centerY: Float,
+    radius: Float,
+): Pair<Float, Float>? {
+    val dx = b.x - a.x
+    val dy = b.y - a.y
+    val fx = a.x - centerX
+    val fy = a.y - centerY
+    val lengthSquared = dx * dx + dy * dy
+    if (lengthSquared == 0f) {
+        return if (fx * fx + fy * fy <= radius * radius) 0f to 1f else null
+    }
+    val half = fx * dx + fy * dy
+    val outside = fx * fx + fy * fy - radius * radius
+    val discriminant = half * half - lengthSquared * outside
+    if (discriminant < 0f) return null
+
+    val root = sqrt(discriminant)
+    val enter = (-half - root) / lengthSquared
+    val exit = (-half + root) / lengthSquared
+    if (exit <= 0f || enter >= 1f) return null
+    return max(0f, enter) to min(1f, exit)
+}
+
+private fun pointAlong(a: StrokePoint, b: StrokePoint, t: Float): StrokePoint =
+    StrokePoint(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t)
 
 /** True when any part of the stroke — including between sampled points — is within [radius]. */
 internal fun Stroke.touches(x: Float, y: Float, radius: Float): Boolean {

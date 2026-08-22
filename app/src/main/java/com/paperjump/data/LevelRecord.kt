@@ -42,6 +42,33 @@ data class LevelRecord(
 /** Identifies one level played one particular way. */
 data class RecordKey(val levelKey: String, val setup: GameSetup)
 
+/**
+ * Everything the records add up to, for the little scoreboard on the home screen.
+ *
+ * Levels are counted by their *content* key rather than per mode, so beating the same
+ * drawing as a platformer and as a runner is one level beaten, not two.
+ */
+data class PlayerStats(
+    val runs: Int = 0,
+    val wins: Int = 0,
+    val levelsBeaten: Int = 0,
+    val bestTimeSeconds: Float? = null,
+) {
+    val hasPlayed: Boolean get() = runs > 0
+
+    companion object {
+        fun of(records: Map<RecordKey, LevelRecord>): PlayerStats = PlayerStats(
+            runs = records.values.sumOf { it.plays },
+            wins = records.values.sumOf { it.wins },
+            levelsBeaten = records.entries
+                .filter { it.value.hasBeenWon }
+                .mapTo(mutableSetOf()) { it.key.levelKey }
+                .size,
+            bestTimeSeconds = records.values.mapNotNull { it.bestTimeSeconds }.minOrNull(),
+        )
+    }
+}
+
 /** Tab-separated lines; see [LevelMetaCodec] for why this is not JSON. */
 object RecordCodec {
 

@@ -20,6 +20,7 @@ import com.paperjump.ui.LevelLibraryScreen
 import com.paperjump.ui.LevelTuneScreen
 import com.paperjump.ui.ModeSelectScreen
 import com.paperjump.ui.SettingsScreen
+import com.paperjump.ui.WhatsNewScreen
 
 /** Every destination in the app. */
 object Routes {
@@ -32,6 +33,7 @@ object Routes {
     const val LIBRARY = "library"
     const val HOW_TO_PLAY = "how_to_play"
     const val SETTINGS = "settings"
+    const val WHATS_NEW = "whats_new"
 }
 
 /**
@@ -52,6 +54,17 @@ fun PaperJumpApp(
     navController: NavHostController = rememberNavController(),
 ) {
     val settings = viewModel.settingsRepository.settings
+
+    // Show the release notes once after an update, then never again unless asked. Recorded
+    // before navigating, so a player who backs straight out is not shown them next launch.
+    LaunchedEffect(versionName) {
+        if (settings.lastSeenVersion.isNotEmpty() && settings.lastSeenVersion != versionName) {
+            navController.navigate(Routes.WHATS_NEW)
+        }
+        if (settings.lastSeenVersion != versionName) {
+            viewModel.settingsRepository.update { it.copy(lastSeenVersion = versionName) }
+        }
+    }
 
     // Screens slide in the direction you are travelling, so the app has a sense of depth
     // instead of cutting between unrelated pages.
@@ -80,11 +93,20 @@ fun PaperJumpApp(
             HomeScreen(
                 savedLevelCount = viewModel.savedLevels.size,
                 versionName = versionName,
+                stats = viewModel.stats,
                 onDraw = { navController.navigate(Routes.DRAW) },
                 onPhotograph = { navController.navigate(Routes.CAPTURE) },
                 onLibrary = { navController.navigate(Routes.LIBRARY) },
                 onHowToPlay = { navController.navigate(Routes.HOW_TO_PLAY) },
                 onSettings = { navController.navigate(Routes.SETTINGS) },
+                onWhatsNew = { navController.navigate(Routes.WHATS_NEW) },
+            )
+        }
+
+        composable(Routes.WHATS_NEW) {
+            WhatsNewScreen(
+                versionName = versionName,
+                onBack = { navController.popBackStack() },
             )
         }
 

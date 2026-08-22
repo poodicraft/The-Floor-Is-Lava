@@ -28,6 +28,8 @@ data class AppSettings(
     val jumpOnRight: Boolean = true,
     /** Show the run timer in the HUD (the countdown in Time attack always shows). */
     val showTimer: Boolean = true,
+    /** The last release whose "what's new" the player has seen, so it is shown once. */
+    val lastSeenVersion: String = "",
 ) {
     companion object {
         const val MIN_CONTROL_SCALE = 0.75f
@@ -66,6 +68,8 @@ class SettingsRepository(context: Context) {
                 .coerceIn(AppSettings.MIN_CONTROL_SCALE, AppSettings.MAX_CONTROL_SCALE),
             jumpOnRight = preferences.getBoolean(KEY_JUMP_ON_RIGHT, defaults.jumpOnRight),
             showTimer = preferences.getBoolean(KEY_SHOW_TIMER, defaults.showTimer),
+            lastSeenVersion = preferences.getString(KEY_LAST_SEEN_VERSION, null)
+                ?: defaults.lastSeenVersion,
         )
     }
 
@@ -76,6 +80,7 @@ class SettingsRepository(context: Context) {
             .putFloat(KEY_CONTROL_SCALE, settings.controlScale)
             .putBoolean(KEY_JUMP_ON_RIGHT, settings.jumpOnRight)
             .putBoolean(KEY_SHOW_TIMER, settings.showTimer)
+            .putString(KEY_LAST_SEEN_VERSION, settings.lastSeenVersion)
             .apply()
     }
 
@@ -86,5 +91,6 @@ class SettingsRepository(context: Context) {
         const val KEY_CONTROL_SCALE = "control_scale"
         const val KEY_JUMP_ON_RIGHT = "jump_on_right"
         const val KEY_SHOW_TIMER = "show_timer"
+        const val KEY_LAST_SEEN_VERSION = "last_seen_version"
     }
 }

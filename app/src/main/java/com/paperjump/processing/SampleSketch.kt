@@ -57,6 +57,9 @@ object SampleSketch {
         dot(0.66f, 0.41f, 0.020f, GOLD)
         dot(0.88f, 0.29f, 0.020f, GOLD)
 
+        // A creature pacing the middle ledge.
+        dot(0.44f, 0.575f, 0.024f, CREATURE)
+
         // Spawn (green) and goal (blue).
         dot(0.05f, 0.84f, 0.026f, SPAWN)
         fill.color = GOAL
@@ -71,4 +74,5 @@ object SampleSketch {
     private const val GOLD = 0xFFF5C518.toInt()
     private const val SPAWN = 0xFF22A040.toInt()
     private const val GOAL = 0xFF1E6FE0.toInt()
+    private const val CREATURE = 0xFF9B30D9.toInt()
 }

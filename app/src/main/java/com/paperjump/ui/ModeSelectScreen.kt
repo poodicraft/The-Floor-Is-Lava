@@ -48,6 +48,7 @@ import com.paperjump.ui.components.SectionLabel
 import com.paperjump.ui.components.SegmentedChoice
 import com.paperjump.ui.components.StatChip
 import com.paperjump.ui.theme.CoinGold
+import com.paperjump.ui.theme.CreatureViolet
 import com.paperjump.ui.theme.LavaOrange
 import com.paperjump.ui.theme.SkyBlue
 import com.paperjump.ui.theme.SpringGreen
@@ -124,7 +125,7 @@ fun ModeSelectScreen(
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            StatChip(value = level.platforms.size.toString(), label = "lines")
+            StatChip(value = level.lineCount.toString(), label = "lines")
             StatChip(value = level.coins.size.toString(), label = "coins", accent = CoinGold)
             StatChip(
                 value = if (level.goal != null) "yes" else "none",
@@ -132,9 +133,14 @@ fun ModeSelectScreen(
                 accent = if (level.goal != null) SkyBlue else MaterialTheme.colorScheme.error,
             )
             StatChip(
-                value = if (level.hazards.isEmpty()) "0" else level.hazards.size.toString(),
+                value = if (level.hasLava) "yes" else "none",
                 label = "lava",
                 accent = LavaOrange,
+            )
+            StatChip(
+                value = level.enemies.size.toString(),
+                label = "creatures",
+                accent = CreatureViolet,
             )
         }
 

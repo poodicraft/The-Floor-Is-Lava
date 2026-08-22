@@ -189,8 +189,14 @@ fun GameView(
                 withWorld(camera) {
                     drawSpawnMarker(level, time, styleScale)
                     level.goal?.let { drawGoal(it, time, styleScale, locked = engine.isGoalLocked) }
-                    drawPlatforms(level.platforms, styleScale, deadly = mode.inkIsDeadly)
-                    drawHazards(level.hazards, time, styleScale)
+                    drawPlatforms(
+                        platforms = level.platforms,
+                        strokes = level.platformStrokes,
+                        styleScale = styleScale,
+                        deadly = mode.inkIsDeadly,
+                    )
+                    drawHazards(level.hazards, time, styleScale, level.hazardStrokes)
+                    drawEnemies(level, engine, time, styleScale)
                     drawCoins(
                         level = level,
                         collected = engine.collected,
@@ -702,6 +708,7 @@ private fun deathHeadline(cause: DeathCause): String = when (cause) {
     DeathCause.FLOODED -> "Swallowed by the lava"
     DeathCause.FELL -> "Off the page"
     DeathCause.CRASHED -> "Crashed"
+    DeathCause.ENEMY -> "Caught!"
     else -> "Burnt to a crisp"
 }
 
@@ -711,5 +718,6 @@ private fun deathExplanation(cause: DeathCause): String = when (cause) {
     DeathCause.FELL -> "You fell off the bottom of the page."
     DeathCause.CRASHED -> "You hit the ink. Out here it is scenery to steer around, " +
         "not something to land on."
+    DeathCause.ENEMY -> "One of the creatures got you. Land on top of one to squash it."
     else -> "You touched the lava."
 }

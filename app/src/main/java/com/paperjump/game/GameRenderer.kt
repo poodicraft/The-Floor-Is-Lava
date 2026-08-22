@@ -6,12 +6,15 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import com.paperjump.processing.LevelData
 import com.paperjump.processing.LevelRect
+import com.paperjump.processing.LevelStroke
 import com.paperjump.ui.theme.CoinGold
+import com.paperjump.ui.theme.CreatureViolet
 import com.paperjump.ui.theme.InkBlack
 import com.paperjump.ui.theme.InkSoft
 import com.paperjump.ui.theme.LavaEmber
@@ -97,6 +100,7 @@ object GameRenderer {
     /** Solid ink: the platforms the player stands on. */
     fun DrawScope.drawPlatforms(
         platforms: List<LevelRect>,
+        strokes: List<LevelStroke> = emptyList(),
         styleScale: Float = 1f,
         /** In [GameMode.FLYER] the ink kills, so it must not read as something to stand on. */
         deadly: Boolean = false,
@@ -104,6 +108,19 @@ object GameRenderer {
         val corner = CornerRadius(0.12f * styleScale, 0.12f * styleScale)
         val body = if (deadly) Color(0xFF6B2018) else InkSoft
         val cap = if (deadly) LavaRed else Color(0xFF4A4238)
+
+        // Anything the detector read as a line is drawn as one, so a ledge drawn at a slant
+        // is a slanted bar rather than a staircase of blocks.
+        strokes.forEach { stroke ->
+            drawCapsule(stroke, body)
+            drawCapsule(
+                stroke = stroke,
+                color = cap,
+                widthScale = 0.34f,
+                offsetY = -stroke.thickness * 0.3f,
+            )
+        }
+
         platforms.forEach { rect ->
             drawRoundRect(
                 color = body,
@@ -121,8 +138,40 @@ object GameRenderer {
         }
     }
 
+    /** One line, drawn as a rounded bar of the given thickness. */
+    private fun DrawScope.drawCapsule(
+        stroke: LevelStroke,
+        color: Color,
+        widthScale: Float = 1f,
+        offsetY: Float = 0f,
+    ) {
+        drawLine(
+            color = color,
+            start = Offset(stroke.x1, stroke.y1 + offsetY),
+            end = Offset(stroke.x2, stroke.y2 + offsetY),
+            strokeWidth = stroke.thickness * widthScale,
+            cap = StrokeCap.Round,
+        )
+    }
+
     /** Lava: a hot gradient with a wobbling surface. */
-    fun DrawScope.drawHazards(hazards: List<LevelRect>, timeSeconds: Float, styleScale: Float = 1f) {
+    fun DrawScope.drawHazards(
+        hazards: List<LevelRect>,
+        timeSeconds: Float,
+        styleScale: Float = 1f,
+        strokes: List<LevelStroke> = emptyList(),
+    ) {
+        strokes.forEach { stroke ->
+            drawCapsule(stroke, LavaRed)
+            // A brighter core that pulses, so a lava line reads as hot rather than as a
+            // red platform.
+            drawCapsule(
+                stroke = stroke,
+                color = LavaEmber.copy(alpha = 0.75f + 0.2f * sin(timeSeconds * 3.2f)),
+                widthScale = 0.45f,
+            )
+        }
+
         val animate = hazards.size <= MAX_ANIMATED_LAVA_RECTS
         hazards.forEach { rect ->
             drawRect(
@@ -188,6 +237,91 @@ object GameRenderer {
                     style = Stroke(width = 0.07f * styleScale),
                 )
             }
+        }
+    }
+
+    /**
+     * The purple creatures.
+     *
+     * Called with live positions while playing, and with `null` from the level preview,
+     * where they sit exactly where they were drawn — the preview has no simulation running,
+     * and a creature frozen at its mark is what the player drew anyway.
+     */
+    fun DrawScope.drawEnemies(
+        level: LevelData,
+        engine: GameEngine?,
+        timeSeconds: Float,
+        styleScale: Float = 1f,
+    ) {
+        if (level.enemies.isEmpty()) return
+        val width = engine?.enemyWidth ?: (0.95f * styleScale)
+        val height = engine?.enemyHeight ?: (0.8f * styleScale)
+
+        level.enemies.forEach { enemy ->
+            val index = enemy.index
+            if (engine?.enemyDefeated?.getOrNull(index) == true) return@forEach
+
+            val centerX = engine?.enemyX?.getOrNull(index) ?: enemy.center.x
+            val centerY = engine?.enemyY?.getOrNull(index) ?: enemy.center.y
+            val facing = engine?.enemyDirection?.getOrNull(index) ?: 1f
+            // A waddle: squashed a little, in time, so it reads as alive at a glance.
+            val waddle = sin(timeSeconds * 6f + index) * 0.08f
+            val bodyHeight = height * (1f + waddle)
+            val bodyWidth = width * (1f - waddle * 0.6f)
+            val left = centerX - bodyWidth / 2f
+            val top = centerY - bodyHeight / 2f
+            val corner = CornerRadius(bodyWidth * 0.42f, bodyWidth * 0.42f)
+
+            // Feet, poking out from under the body as it walks.
+            listOf(-0.26f, 0.26f).forEachIndexed { foot, side ->
+                val step = sin(timeSeconds * 9f + index + foot * 3.14f) * bodyWidth * 0.12f
+                drawCircle(
+                    color = Color(0xFF5B1580),
+                    radius = bodyWidth * 0.17f,
+                    center = Offset(centerX + bodyWidth * side + step, top + bodyHeight),
+                )
+            }
+
+            drawRoundRect(
+                color = InkBlack.copy(alpha = 0.18f),
+                topLeft = Offset(left + bodyWidth * 0.08f, top + bodyHeight * 0.1f),
+                size = Size(bodyWidth, bodyHeight),
+                cornerRadius = corner,
+            )
+            drawRoundRect(
+                color = CreatureViolet,
+                topLeft = Offset(left, top),
+                size = Size(bodyWidth, bodyHeight),
+                cornerRadius = corner,
+            )
+            drawRoundRect(
+                color = InkBlack.copy(alpha = 0.6f),
+                topLeft = Offset(left, top),
+                size = Size(bodyWidth, bodyHeight),
+                cornerRadius = corner,
+                style = Stroke(width = bodyWidth * 0.1f),
+            )
+
+            val lookX = bodyWidth * 0.14f * (if (facing >= 0f) 1f else -1f)
+            val eyeY = top + bodyHeight * 0.36f
+            val eyeRadius = bodyWidth * 0.16f
+            listOf(-0.19f, 0.19f).forEach { side ->
+                val eyeX = centerX + lookX + bodyWidth * side
+                drawCircle(color = Color.White, radius = eyeRadius, center = Offset(eyeX, eyeY))
+                drawCircle(
+                    color = InkBlack,
+                    radius = eyeRadius * 0.55f,
+                    center = Offset(eyeX + lookX * 0.3f, eyeY),
+                )
+            }
+            // A flat scowl, which is all it takes to look like it means harm.
+            drawLine(
+                color = InkBlack.copy(alpha = 0.7f),
+                start = Offset(centerX - bodyWidth * 0.18f, top + bodyHeight * 0.68f),
+                end = Offset(centerX + bodyWidth * 0.18f, top + bodyHeight * 0.68f),
+                strokeWidth = bodyWidth * 0.08f,
+                cap = StrokeCap.Round,
+            )
         }
     }
 

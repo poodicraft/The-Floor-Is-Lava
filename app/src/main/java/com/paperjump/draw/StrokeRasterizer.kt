@@ -18,8 +18,8 @@ import kotlin.math.roundToInt
  * and the tuning screen keeps working for both.
  *
  * The ink colours below are chosen to land squarely on the hues the detector snaps to
- * (red 0°, yellow 50°, green 130°, blue 215°) with plenty of saturation to spare, so a
- * drawing is never misread the way a faint highlighter on a photo might be.
+ * (red 0°, yellow 50°, green 130°, blue 215°, purple 288°) with plenty of saturation to
+ * spare, so a drawing is never misread the way a faint highlighter on a photo might be.
  */
 object StrokeRasterizer {
 
@@ -35,6 +35,7 @@ object StrokeRasterizer {
         DrawTool.COIN -> 0xFFF2C200.toInt() // hue 48°  -> coin
         DrawTool.SPAWN -> 0xFF21B04B.toInt() // hue 138° -> spawn
         DrawTool.GOAL -> 0xFF1E6FE0.toInt() // hue 215° -> goal
+        DrawTool.ENEMY -> 0xFF9B30D9.toInt() // hue 278° -> creature
         DrawTool.ERASER -> PAPER
     }
 
