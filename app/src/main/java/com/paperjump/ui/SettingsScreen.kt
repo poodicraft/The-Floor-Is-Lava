@@ -246,7 +246,7 @@ private fun AiKeySetting(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 label = { Text("Key") },
-                placeholder = { Text("AIza…") },
+                placeholder = { Text("AQ.… or AIza…") },
                 visualTransformation = if (showKey) {
                     VisualTransformation.None
                 } else {

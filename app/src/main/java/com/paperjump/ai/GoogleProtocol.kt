@@ -18,8 +18,14 @@ object GoogleProtocol {
     /** The key goes in a header rather than the query string, so it stays out of any log. */
     const val KEY_HEADER = "x-goog-api-key"
 
-    /** Keys from AI Studio all start with this, which is how the app knows the provider. */
-    const val KEY_PREFIX = "AIza"
+    /**
+     * How an AI Studio key tends to start.
+     *
+     * Two shapes, because Google changed theirs: the long-standing `AIza…` and the newer
+     * `AQ.…`. Only a hint — [AiProvider.forKey] sends anything it does not recognise here
+     * anyway — so a third shape tomorrow costs a wrong label, not a broken feature.
+     */
+    val KEY_PREFIXES: List<String> = listOf("AIza", "AQ.")
 
     /** Fast, cheap, reads images, and the free tier's workhorse. */
     const val DEFAULT_MODEL = "gemini-2.5-flash"

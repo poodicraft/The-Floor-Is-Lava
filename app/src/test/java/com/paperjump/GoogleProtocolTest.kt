@@ -190,6 +190,19 @@ class GoogleProtocolTest {
     }
 
     @Test
+    fun `google's newer key shape is still google`() {
+        // Real shape, from a key AI Studio issued in 2026: the old AIza… prefix is not the
+        // only one any more, and a key that works must not be turned away by a guess about
+        // how it starts.
+        assertEquals(AiProvider.GOOGLE, AiProvider.forKey("AQ.Ab8ExampleExampleExample"))
+        assertEquals(AiProvider.GOOGLE, AiProvider.forKey("some-shape-nobody-has-seen-yet"))
+        assertTrue(
+            "the shapes we do know are worth telling people about",
+            GoogleProtocol.KEY_PREFIXES.containsAll(listOf("AIza", "AQ.")),
+        )
+    }
+
+    @Test
     fun `each service asks in its own shape`() {
         val google = AiProvider.GOOGLE.requestBody("gemini-2.5-flash", "AAAA", "")
         assertNotNull(Json.parse(google))

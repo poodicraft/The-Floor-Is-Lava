@@ -40,10 +40,13 @@ jobs:
             echo "Proxy configured (${#AI_PROXY_URL} characters). The APK will carry no key."
           elif [ -n "$AI_API_KEY" ]; then
             echo "Key present (${#AI_API_KEY} characters); it will be built in."
+            # Google issues both AIza… and the newer AQ.… keys, and may well add a third
+            # shape; the app sends anything that is not an hf_ token to Google, so an
+            # unfamiliar prefix is worth a note rather than a warning.
             case "$AI_API_KEY" in
-              AIza*) echo "Google AI Studio key — the free tier the app is aimed at." ;;
-              hf_*) echo "Hugging Face token. Their routing needs a payment method on file." ;;
-              *) echo "::warning::Key starts with neither AIza nor hf_ — is it the right value?" ;;
+              AIza*|AQ.*) echo "Google AI Studio key — the free tier the app is aimed at." ;;
+              hf_*) echo "::warning::Hugging Face token. Their routing needs a payment method on file." ;;
+              *) echo "Unfamiliar prefix; it will be sent to Google AI Studio." ;;
             esac
           else
             echo "::warning::No AI_PROXY_URL and no AI_API_KEY. Draw anything will ask for a key."

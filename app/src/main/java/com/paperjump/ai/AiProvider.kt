@@ -18,7 +18,7 @@ enum class AiProvider {
 
     GOOGLE {
         override val label = "Google AI Studio"
-        override val keyPrefix = GoogleProtocol.KEY_PREFIX
+        override val keyPrefixes = GoogleProtocol.KEY_PREFIXES
         override val keyHome = "aistudio.google.com/apikey"
         override val defaultModel = GoogleProtocol.DEFAULT_MODEL
         override val modelCandidates = GoogleProtocol.MODEL_CANDIDATES
@@ -42,7 +42,7 @@ enum class AiProvider {
 
     HUGGING_FACE {
         override val label = "Hugging Face"
-        override val keyPrefix = "hf_"
+        override val keyPrefixes = listOf("hf_")
         override val keyHome = "huggingface.co/settings/tokens"
         override val defaultModel = AiProtocol.DEFAULT_MODEL
         override val modelCandidates = AiProtocol.MODEL_CANDIDATES
@@ -66,8 +66,8 @@ enum class AiProvider {
     /** How to name this service to a player. */
     abstract val label: String
 
-    /** What its keys begin with, which is how [forKey] tells them apart. */
-    abstract val keyPrefix: String
+    /** What its keys tend to begin with, which is how [forKey] tells them apart. */
+    abstract val keyPrefixes: List<String>
 
     /** Where a free key comes from, for the app to point at. */
     abstract val keyHome: String
@@ -101,14 +101,18 @@ enum class AiProvider {
         /**
          * Whoever issued this key.
          *
-         * An unrecognised key is treated as Google's: it is the one the app tells people to
-         * get, so a key that has been mangled by a paste is far likelier to be one of those
-         * than a Hugging Face token in disguise. Guessing wrong costs one clear error
+         * Anything unrecognised is treated as Google's, and deliberately so: Google has
+         * already changed the shape of its keys once (`AIza…` became `AQ.…` for new ones),
+         * and a feature that stops working because a prefix moved would be a silly way to
+         * lose it. Hugging Face's `hf_` is the only shape actually being matched; the rest
+         * of the world is assumed to be Google. Guessing wrong costs one clear error
          * message, which is cheaper than a provider picker nobody wanted.
          */
         fun forKey(key: String): AiProvider {
             val trimmed = key.trim()
-            return entries.firstOrNull { trimmed.startsWith(it.keyPrefix) } ?: GOOGLE
+            return entries.firstOrNull { provider ->
+                provider != GOOGLE && provider.keyPrefixes.any { trimmed.startsWith(it) }
+            } ?: GOOGLE
         }
 
         /**
