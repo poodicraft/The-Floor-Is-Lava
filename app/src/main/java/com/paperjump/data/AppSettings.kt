@@ -2,7 +2,7 @@ package com.paperjump.data
 
 import android.content.Context
 import com.paperjump.BuildConfig
-import com.paperjump.ai.AiProtocol
+import com.paperjump.ai.AiProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -33,15 +33,21 @@ data class AppSettings(
     /** The last release whose "what's new" the player has seen, so it is shown once. */
     val lastSeenVersion: String = "",
     /**
-     * The player's own Hugging Face key, for the AI level designer.
+     * The key for the AI level designer — Google AI Studio's, or Hugging Face's.
      *
-     * Kept on the device and nowhere else. It is never bundled into the app: a key baked
-     * into an APK can be read straight back out of it by anybody who has the file, so this
-     * one is typed in once and stays here.
+     * Which service it is comes from the key itself, so there is nothing else to pick. A
+     * key typed in here stays on the device; a key that arrived with the build came from a
+     * repository secret and was never committed.
      */
     val aiToken: String = "",
-    /** Which hosted vision model to ask. A setting so a model going away is not a rebuild. */
-    val aiModel: String = AiProtocol.DEFAULT_MODEL,
+    /**
+     * Which vision model to ask, or blank for whichever the service is serving.
+     *
+     * Blank by default and best left that way: the app asks the service what it can call
+     * before falling back on names of its own. This is here for the day one particular
+     * model is wanted, so that is a line of text rather than a new build.
+     */
+    val aiModel: String = "",
     /**
      * A proxy that holds the key on the player's behalf, if the build was given one.
      *
@@ -55,6 +61,22 @@ data class AppSettings(
     val canUseAi: Boolean get() = aiProxyUrl.isNotBlank() || aiToken.isNotBlank()
 
     val hasAiKey: Boolean get() = canUseAi
+
+    /** Whoever the key belongs to. A proxy holds the key for us, and ours is Google's. */
+    val aiProvider: AiProvider
+        get() = if (aiProxyUrl.isNotBlank()) AiProvider.GOOGLE else AiProvider.forKey(aiToken)
+
+    /**
+     * The model to actually ask for.
+     *
+     * A name left over from the other service is dropped rather than sent: it would cost a
+     * round trip to be told the obvious. That happens on any phone that used the Hugging
+     * Face build and has since been given a Google key.
+     */
+    val aiModelInUse: String
+        get() = aiModel.trim()
+            .takeIf { it.isNotEmpty() && AiProvider.forModel(it) == aiProvider }
+            .orEmpty()
 
     companion object {
         const val MIN_CONTROL_SCALE = 0.75f

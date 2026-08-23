@@ -33,7 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import com.paperjump.ai.AiProtocol
+import com.paperjump.ai.AiProvider
 import com.paperjump.data.AppSettings
 import com.paperjump.data.ThemeChoice
 import com.paperjump.ui.components.PaperOutlineButton
@@ -189,12 +189,11 @@ fun SettingsScreen(
 }
 
 /**
- * Where the player's own Hugging Face key lives.
+ * Where the key for the level designer lives.
  *
- * Typed in rather than shipped: a key compiled into an APK can be pulled straight back out
- * of the file by anyone who has it, so the app never carries one. The model is editable
- * beside it because hosted models come and go, and a model going away should be a line of
- * text to change rather than a new build.
+ * There is no service to choose: the key says who issued it. The model is editable beside
+ * it because hosted models come and go, and a model going away should be a line of text to
+ * change rather than a new build.
  */
 @Composable
 private fun AiKeySetting(
@@ -219,12 +218,13 @@ private fun AiKeySetting(
                         "\"Draw anything\" is set up and ready: this build talks to your own " +
                             "server, which holds the key. There is nothing to fill in here."
                     settings.aiToken.isNotBlank() ->
-                        "\"Draw anything\" is ready. Your key is stored on this phone only."
+                        "\"Draw anything\" is ready, using ${settings.aiProvider.label}. Your " +
+                            "key is stored on this phone only."
                     else ->
-                        "\"Draw anything\" sends your drawing to a vision model on Hugging " +
-                            "Face and builds the level it designs. It needs a free key from " +
-                            "huggingface.co/settings/tokens — a read token, or a fine-grained " +
-                            "one with \"Make calls to Inference Providers\" ticked."
+                        "\"Draw anything\" sends your drawing to a vision model and builds the " +
+                            "level it designs back. It needs a free key from " +
+                            "${AiProvider.GOOGLE.keyHome} — that tier reads pictures without a " +
+                            "card on file. A Hugging Face token works too, if you have one."
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -245,8 +245,8 @@ private fun AiKeySetting(
                 onValueChange = { value -> onSettingsChange { it.copy(aiToken = value.trim()) } },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                label = { Text("Hugging Face key") },
-                placeholder = { Text("hf_…") },
+                label = { Text("Key") },
+                placeholder = { Text("AIza…") },
                 visualTransformation = if (showKey) {
                     VisualTransformation.None
                 } else {
@@ -264,13 +264,17 @@ private fun AiKeySetting(
                 onValueChange = { value -> onSettingsChange { it.copy(aiModel = value.trim()) } },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                label = { Text("Model") },
+                label = { Text("Model (optional)") },
+                placeholder = { Text(settings.aiProvider.defaultModel) },
+                supportingText = {
+                    Text("Leave this empty and the app asks for whatever is being served.")
+                },
             )
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 PaperOutlineButton(
-                    text = "Reset model",
-                    onClick = { onSettingsChange { it.copy(aiModel = AiProtocol.DEFAULT_MODEL) } },
+                    text = "Clear model",
+                    onClick = { onSettingsChange { it.copy(aiModel = "") } },
                     modifier = Modifier.weight(1f),
                     accent = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

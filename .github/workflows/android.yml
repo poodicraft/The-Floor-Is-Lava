@@ -34,35 +34,37 @@ jobs:
       - name: Report how the AI level designer is configured
         env:
           AI_PROXY_URL: ${{ secrets.AI_PROXY_URL }}
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY || secrets.HF_TOKEN }}
         run: |
           if [ -n "$AI_PROXY_URL" ]; then
             echo "Proxy configured (${#AI_PROXY_URL} characters). The APK will carry no key."
-          elif [ -n "$HF_TOKEN" ]; then
-            echo "Hugging Face key present (${#HF_TOKEN} characters); it will be built in."
-            case "$HF_TOKEN" in
-              hf_*) echo "Shape looks right." ;;
-              *) echo "::warning::The key does not start with hf_ — is it the right value?" ;;
+          elif [ -n "$AI_API_KEY" ]; then
+            echo "Key present (${#AI_API_KEY} characters); it will be built in."
+            case "$AI_API_KEY" in
+              AIza*) echo "Google AI Studio key — the free tier the app is aimed at." ;;
+              hf_*) echo "Hugging Face token. Their routing needs a payment method on file." ;;
+              *) echo "::warning::Key starts with neither AIza nor hf_ — is it the right value?" ;;
             esac
           else
-            echo "::warning::No AI_PROXY_URL and no HF_TOKEN. Draw anything will ask for a key."
+            echo "::warning::No AI_PROXY_URL and no AI_API_KEY. Draw anything will ask for a key."
           fi
 
       - name: Assemble debug APK
         env:
           # Optional, and all three default to empty. AI_PROXY_URL / AI_APP_SECRET point the
-          # build at a proxy that holds the key (see server/README.md); HF_TOKEN bakes a key
-          # into the APK instead, which works and is only sensible for a build that stays on
-          # your own phone.
+          # build at a proxy that holds the key (see server/README.md); AI_API_KEY bakes a
+          # key into the APK instead, which works and is only sensible for a build that
+          # stays on your own phone. HF_TOKEN is the old name for that secret, still read so
+          # that renaming it here did not break a repository that already had one.
           AI_PROXY_URL: ${{ secrets.AI_PROXY_URL }}
           AI_APP_SECRET: ${{ secrets.AI_APP_SECRET }}
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY || secrets.HF_TOKEN }}
         # Passed as properties, not read from the environment: a reused Gradle daemon keeps
         # the environment it started with, and would never see these. The shell expands
         # them, so the log shows the variable names rather than the values.
         run: >
           ./gradlew assembleDebug
-          -PhfToken="$HF_TOKEN"
+          -PaiKey="$AI_API_KEY"
           -PaiProxyUrl="$AI_PROXY_URL"
           -PaiAppSecret="$AI_APP_SECRET"
 
@@ -101,10 +103,10 @@ jobs:
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD || 'throwaway' }}
           AI_PROXY_URL: ${{ secrets.AI_PROXY_URL }}
           AI_APP_SECRET: ${{ secrets.AI_APP_SECRET }}
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY || secrets.HF_TOKEN }}
         run: >
           ./gradlew assembleRelease
-          -PhfToken="$HF_TOKEN"
+          -PaiKey="$AI_API_KEY"
           -PaiProxyUrl="$AI_PROXY_URL"
           -PaiAppSecret="$AI_APP_SECRET"
 

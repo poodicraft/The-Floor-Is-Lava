@@ -24,16 +24,19 @@ val releaseNumber: Int = Properties().apply {
  * generated `BuildConfig`, where a stray quote would be a compile error rather than a
  * mystery at runtime.
  */
-val buildSecret: (String, String) -> String = { property, environmentVariable ->
+val buildSecret: (List<String>, List<String>) -> String = { properties, environmentVariables ->
     // Read through the provider API, and prefer the -P property.
     //
     // `System.getenv` would be wrong here: Gradle reuses a daemon between invocations, and
     // that daemon keeps the environment it was *started* with. CI runs the tests first, so
     // the daemon is already alive and keyless by the time the release build asks — the key
     // would silently never arrive, and the APK would look fine and do nothing.
+    //
+    // Several names are accepted per value so that renaming one here does not invalidate a
+    // repository secret somebody already set up.
     (
-        providers.gradleProperty(property).orNull
-            ?: providers.environmentVariable(environmentVariable).orNull
+        properties.firstNotNullOfOrNull { providers.gradleProperty(it).orNull }
+            ?: environmentVariables.firstNotNullOfOrNull { providers.environmentVariable(it).orNull }
             ?: ""
         )
         .trim()
@@ -60,12 +63,25 @@ android {
         // aiProxyUrl / aiAppSecret point the app at your own proxy, which holds the key.
         // Neither is a secret: a URL is a URL, and the app secret is only a speed bump.
         //
-        // hfToken bakes a Hugging Face key straight into the APK instead. It works, and
-        // anybody who gets the APK gets the key with it, so it belongs on a build that
-        // stays on your own phone rather than one you hand out.
-        buildConfigField("String", "AI_PROXY_URL", "\"${buildSecret("aiProxyUrl", "AI_PROXY_URL")}\"")
-        buildConfigField("String", "AI_APP_SECRET", "\"${buildSecret("aiAppSecret", "AI_APP_SECRET")}\"")
-        buildConfigField("String", "AI_TOKEN", "\"${buildSecret("hfToken", "HF_TOKEN")}\"")
+        // aiKey bakes a key straight into the APK instead — a Google AI Studio one
+        // (AIza…), or a Hugging Face token (hf_…); the app tells them apart itself. It
+        // works, and anybody who gets the APK gets the key with it, so it belongs on a
+        // build that stays on your own phone rather than one you hand out.
+        buildConfigField(
+            "String",
+            "AI_PROXY_URL",
+            "\"${buildSecret(listOf("aiProxyUrl"), listOf("AI_PROXY_URL"))}\"",
+        )
+        buildConfigField(
+            "String",
+            "AI_APP_SECRET",
+            "\"${buildSecret(listOf("aiAppSecret"), listOf("AI_APP_SECRET"))}\"",
+        )
+        buildConfigField(
+            "String",
+            "AI_TOKEN",
+            "\"${buildSecret(listOf("aiKey", "hfToken"), listOf("AI_API_KEY", "HF_TOKEN"))}\"",
+        )
     }
 
     // Signing for the release build. The key comes from the environment so no private key

@@ -216,7 +216,7 @@ class SketchGameViewModel(application: Application) : AndroidViewModel(applicati
                     drawing = drawn,
                     hint = note,
                     token = settings.aiToken,
-                    model = settings.aiModel,
+                    model = settings.aiModelInUse,
                     proxyUrl = settings.aiProxyUrl,
                     appSecret = BuildConfig.AI_APP_SECRET,
                 )

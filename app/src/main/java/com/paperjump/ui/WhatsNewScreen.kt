@@ -43,11 +43,11 @@ data class Release(val version: String, val headline: String, val changes: List<
                 headline = "Draw anything, and the app is now PaperEngine",
                 changes = listOf(
                     "New on the menu: \"Draw anything\". Draw a castle, a face, a racetrack " +
-                        "— anything at all, with no colour code — and a vision model on " +
-                        "Hugging Face designs a level out of it.",
-                    "It needs a free Hugging Face key. A build can be given one so the " +
-                        "app arrives ready to use, or you can paste your own into Settings. " +
-                        "Everything else in the app still works with no network at all.",
+                        "— anything at all, with no colour code — and a vision model " +
+                        "designs a level out of it.",
+                    "It needs a free key from Google AI Studio: no card, no cost. A build " +
+                        "can be given one so the app arrives ready to use, or you can paste " +
+                        "your own into Settings. Everything else still works offline.",
                     "What the model designs is painted as an ordinary sketch and read by " +
                         "the ordinary detector, so an AI level is saved, re-tuned and " +
                         "replayed like any other — no key needed the second time.",

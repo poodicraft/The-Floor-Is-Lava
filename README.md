@@ -47,9 +47,10 @@ Anything else on the page (paper colour, shadows, faint grid lines) is ignored.
 ### Or draw anything at all
 
 "Draw anything" is a second, optional route: draw whatever you like with no colour code and
-a hosted vision model designs a level from the picture. It needs a free Hugging Face key,
-which is typed into Settings and kept on the device — the app never ships one, because a key
-compiled into an APK can be read straight back out of it.
+a hosted vision model designs a level from the picture. It needs a free key from
+[Google AI Studio](https://aistudio.google.com/apikey) — that tier reads pictures with no
+payment method on file. A Hugging Face token (`hf_…`) works too; the app tells the two apart
+by the key itself, so there is no service to pick.
 
 The model's answer is not trusted with anything: it comes back as a plan in normalised
 coordinates, which `PlanPainter` paints as an ordinary sketch in the app's own ink colours,
@@ -61,7 +62,7 @@ way instead.
 The key can be supplied three ways, and the app prefers them in this order: a **proxy** the
 build points at (which holds the key, so the APK carries none — see
 [`server/README.md`](server/README.md)), a key **typed into Settings**, or a key **baked in at
-build time** from an `HF_TOKEN` secret. Only the first is actually private: an APK is a zip,
+build time** from an `AI_API_KEY` secret. Only the first is actually private: an APK is a zip,
 and a key inside one can be read straight back out of it.
 
 This is the only part of the app that uses the network.

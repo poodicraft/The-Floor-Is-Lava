@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.paperjump.ai.AiProvider
 import com.paperjump.draw.DrawingController
 import com.paperjump.draw.DrawingScreen
 import com.paperjump.draw.DrawingState
@@ -124,8 +125,8 @@ private fun MissingKeyNote(onOpenSettings: () -> Unit) {
     Note(accent = MaterialTheme.colorScheme.onSurfaceVariant) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(
-                text = "This needs a free Hugging Face key, which lives on this phone and " +
-                    "goes nowhere else.",
+                text = "This needs a free key from ${AiProvider.GOOGLE.keyHome} — no card, no " +
+                    "cost. It lives on this phone and goes nowhere else.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

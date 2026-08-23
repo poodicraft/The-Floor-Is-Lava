@@ -7,6 +7,7 @@ import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 import java.net.UnknownHostException
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -25,6 +26,9 @@ sealed interface AiOutcome {
  * It fails in words rather than exceptions: every way this can go wrong — no key, no
  * signal, a model that is asleep, a reply that is not JSON — ends as a [AiOutcome.Failure]
  * with something the player can act on, because the caller always has a working fallback.
+ *
+ * Which service it talks to comes from the key ([AiProvider.forKey]); everything that
+ * differs between them lives in [AiProvider], so what is left here is one loop.
  */
 object AiLevelClient {
 
@@ -38,8 +42,11 @@ object AiLevelClient {
     /** Looking up the model list must not hold the drawing up for long. */
     private const val LIST_TIMEOUT_MS = 15_000
 
+    /** At most this many round trips before giving up; each one costs the player a wait. */
+    private const val MAX_MODELS_TRIED = 6
+
     /**
-     * @param proxyUrl a server that holds the key, or blank to call Hugging Face directly
+     * @param proxyUrl a server that holds the key, or blank to call the service directly
      * @param token the player's own key; ignored, and not sent, when [proxyUrl] is set
      */
     suspend fun planLevel(
@@ -53,37 +60,36 @@ object AiLevelClient {
         val viaProxy = proxyUrl.isNotBlank()
         if (!viaProxy && token.isBlank()) {
             return@withContext AiOutcome.Failure(
-                "No Hugging Face key yet. Settings → AI level designer is where it goes.",
+                "No key yet. Settings → AI level designer is where it goes.",
             )
         }
 
-        val imageDataUrl = dataUrl(drawing)
-        val endpoint = if (viaProxy) proxyUrl.trim() else AiProtocol.ENDPOINT
+        // Through a proxy there is no key here to read the service off, and the proxy that
+        // ships with the app is Google's — see server/README.md.
+        val provider = if (viaProxy) AiProvider.GOOGLE else AiProvider.forKey(token)
+        val imageBase64 = base64Jpeg(drawing)
 
-        // Try the chosen model first, then whatever Hugging Face says is being served
-        // right now, then the built-in list. Which provider carries which model changes
-        // without notice, so no single name — and no list written months ago — is
-        // something to rely on.
+        // Try the chosen model first, then whatever the service says it is serving right
+        // now, then the built-in list. Model names go stale faster than releases do, so no
+        // single name — and no list written months ago — is something to rely on.
         val candidates = buildList {
             model.trim().takeIf { it.isNotEmpty() }?.let { add(it) }
             // Through a proxy the model has to be one the proxy allows, so the live list
             // is skipped: it would only produce names the proxy is going to refuse.
-            if (!viaProxy) discoverModels(token).forEach { if (it !in this) add(it) }
-            AiProtocol.MODEL_CANDIDATES.forEach { if (it !in this) add(it) }
+            if (!viaProxy) discoverModels(provider, token).forEach { if (it !in this) add(it) }
+            provider.modelCandidates.forEach { if (it !in this) add(it) }
         }.take(MAX_MODELS_TRIED)
 
-        var lastFailure = "Hugging Face did not answer."
+        var lastFailure = "${provider.label} did not answer."
         var everyModelRefused = true
         for (candidate in candidates) {
-            val body = AiProtocol.chatRequest(
-                model = candidate,
-                imageDataUrl = imageDataUrl,
-                hint = hint,
-            )
+            val body = provider.requestBody(candidate, imageBase64, hint)
+            val endpoint =
+                if (viaProxy) proxyEndpoint(proxyUrl, candidate) else provider.endpointFor(candidate)
 
             val response = runCatching {
                 // Through a proxy the app sends no key at all — that is the whole point.
-                post(endpoint, body, if (viaProxy) "" else token, appSecret)
+                post(endpoint, body, provider, if (viaProxy) "" else token, appSecret)
             }.getOrElse { error ->
                 // A network failure will not be cured by asking for a different model.
                 return@withContext AiOutcome.Failure(
@@ -96,16 +102,16 @@ object AiLevelClient {
             }
 
             if (response.status !in 200..299) {
-                lastFailure = AiProtocol.failureMessage(response.status, response.body)
-                if (AiProtocol.worthTryingAnotherModel(response.status, response.body)) continue
+                lastFailure = provider.failureMessage(response.status, response.body)
+                if (provider.worthTryingAnotherModel(response.status, response.body)) continue
                 return@withContext AiOutcome.Failure(lastFailure)
             }
             // It answered; whatever went wrong after this is not about availability.
             everyModelRefused = false
 
-            val reply = AiProtocol.replyText(response.body)
+            val reply = provider.replyText(response.body)
             if (reply == null) {
-                lastFailure = "Hugging Face sent a reply I could not read."
+                lastFailure = "${provider.label} sent a reply I could not read."
                 continue
             }
 
@@ -121,38 +127,44 @@ object AiLevelClient {
 
         AiOutcome.Failure(
             if (everyModelRefused) {
-                "None of the vision models the app knows about is being served right now. " +
-                    "This is Hugging Face's side, not yours — the free routing drops models " +
-                    "in and out. Try again later, or put a model that works into Settings.\n\n" +
-                    lastFailure
+                "None of the vision models the app knows about would take the job. That is " +
+                    "${provider.label}'s side rather than yours. Try again in a minute, or " +
+                    "put a model that works into Settings.\n\n" + lastFailure
             } else {
                 lastFailure
             },
         )
     }
 
-    /** At most this many round trips before giving up; each one costs the player a wait. */
-    private const val MAX_MODELS_TRIED = 6
+    /** The proxy takes the model in the query string, since Google's body has no room for it. */
+    private fun proxyEndpoint(proxyUrl: String, model: String): String {
+        val base = proxyUrl.trim()
+        val separator = if ("?" in base) "&" else "?"
+        return base + separator + "model=" + URLEncoder.encode(model, "UTF-8")
+    }
 
     /**
-     * Asks Hugging Face which vision models are currently being served.
+     * Asks the service which models this key may currently call.
      *
      * Best effort by design: a failure here is not worth reporting, because the built-in
      * list is still there and the caller is about to try it.
      */
-    private fun discoverModels(token: String): List<String> = runCatching {
-        val response = get(AiProtocol.MODELS_ENDPOINT, token)
-        if (response.status in 200..299) AiProtocol.parseModelIds(response.body) else emptyList()
+    private fun discoverModels(provider: AiProvider, token: String): List<String> = runCatching {
+        val response = get(provider.modelsEndpoint, provider, token)
+        if (response.status in 200..299) provider.parseModelIds(response.body) else emptyList()
     }.getOrDefault(emptyList())
 
     private class Response(val status: Int, val body: String)
 
-    private fun get(endpoint: String, token: String): Response {
+    private fun get(endpoint: String, provider: AiProvider, token: String): Response {
         val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = CONNECT_TIMEOUT_MS
             readTimeout = LIST_TIMEOUT_MS
-            if (token.isNotBlank()) setRequestProperty("Authorization", "Bearer ${token.trim()}")
+            if (token.isNotBlank()) {
+                val (name, value) = provider.authHeader(token)
+                setRequestProperty(name, value)
+            }
             setRequestProperty("Accept", "application/json")
         }
         try {
@@ -164,13 +176,22 @@ object AiLevelClient {
         }
     }
 
-    private fun post(endpoint: String, body: String, token: String, appSecret: String): Response {
+    private fun post(
+        endpoint: String,
+        body: String,
+        provider: AiProvider,
+        token: String,
+        appSecret: String,
+    ): Response {
         val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             doOutput = true
             connectTimeout = CONNECT_TIMEOUT_MS
             readTimeout = READ_TIMEOUT_MS
-            if (token.isNotBlank()) setRequestProperty("Authorization", "Bearer ${token.trim()}")
+            if (token.isNotBlank()) {
+                val (name, value) = provider.authHeader(token)
+                setRequestProperty(name, value)
+            }
             if (appSecret.isNotBlank()) setRequestProperty("x-paperengine", appSecret.trim())
             setRequestProperty("Content-Type", "application/json")
             setRequestProperty("Accept", "application/json")
@@ -186,15 +207,15 @@ object AiLevelClient {
         }
     }
 
-    /** The drawing, shrunk and inlined as a data URL. */
-    private fun dataUrl(drawing: Bitmap): String {
+    /** The drawing, shrunk and encoded; each provider wraps this in its own way. */
+    private fun base64Jpeg(drawing: Bitmap): String {
         val scaled = downscale(drawing)
         val bytes = ByteArrayOutputStream().use { out ->
             scaled.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out)
             out.toByteArray()
         }
         if (scaled !== drawing) scaled.recycle()
-        return "data:image/jpeg;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+        return Base64.encodeToString(bytes, Base64.NO_WRAP)
     }
 
     private fun downscale(bitmap: Bitmap): Bitmap {
