@@ -29,6 +29,25 @@ jobs:
       - name: Lint
         run: ./gradlew lintDebug
 
+      # Says whether the AI level designer was wired up, without ever printing what with.
+      # A build that quietly produced a keyless APK is the failure worth catching early.
+      - name: Report how the AI level designer is configured
+        env:
+          AI_PROXY_URL: ${{ secrets.AI_PROXY_URL }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          if [ -n "$AI_PROXY_URL" ]; then
+            echo "Proxy configured (${#AI_PROXY_URL} characters). The APK will carry no key."
+          elif [ -n "$HF_TOKEN" ]; then
+            echo "Hugging Face key present (${#HF_TOKEN} characters); it will be built in."
+            case "$HF_TOKEN" in
+              hf_*) echo "Shape looks right." ;;
+              *) echo "::warning::The key does not start with hf_ — is it the right value?" ;;
+            esac
+          else
+            echo "::warning::No AI_PROXY_URL and no HF_TOKEN. Draw anything will ask for a key."
+          fi
+
       - name: Assemble debug APK
         env:
           # Optional, and all three default to empty. AI_PROXY_URL / AI_APP_SECRET point the
@@ -38,7 +57,14 @@ jobs:
           AI_PROXY_URL: ${{ secrets.AI_PROXY_URL }}
           AI_APP_SECRET: ${{ secrets.AI_APP_SECRET }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: ./gradlew assembleDebug
+        # Passed as properties, not read from the environment: a reused Gradle daemon keeps
+        # the environment it started with, and would never see these. The shell expands
+        # them, so the log shows the variable names rather than the values.
+        run: >
+          ./gradlew assembleDebug
+          -PhfToken="$HF_TOKEN"
+          -PaiProxyUrl="$AI_PROXY_URL"
+          -PaiAppSecret="$AI_APP_SECRET"
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
@@ -76,7 +102,11 @@ jobs:
           AI_PROXY_URL: ${{ secrets.AI_PROXY_URL }}
           AI_APP_SECRET: ${{ secrets.AI_APP_SECRET }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: ./gradlew assembleRelease
+        run: >
+          ./gradlew assembleRelease
+          -PhfToken="$HF_TOKEN"
+          -PaiProxyUrl="$AI_PROXY_URL"
+          -PaiAppSecret="$AI_APP_SECRET"
 
       - name: Check the release APK is signed and not debuggable
         run: |

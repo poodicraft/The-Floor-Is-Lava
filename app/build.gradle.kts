@@ -25,7 +25,17 @@ val releaseNumber: Int = Properties().apply {
  * mystery at runtime.
  */
 val buildSecret: (String, String) -> String = { property, environmentVariable ->
-    (findProperty(property) as String? ?: System.getenv(environmentVariable) ?: "")
+    // Read through the provider API, and prefer the -P property.
+    //
+    // `System.getenv` would be wrong here: Gradle reuses a daemon between invocations, and
+    // that daemon keeps the environment it was *started* with. CI runs the tests first, so
+    // the daemon is already alive and keyless by the time the release build asks — the key
+    // would silently never arrive, and the APK would look fine and do nothing.
+    (
+        providers.gradleProperty(property).orNull
+            ?: providers.environmentVariable(environmentVariable).orNull
+            ?: ""
+        )
         .trim()
         .replace("\\", "\\\\")
         .replace("\"", "\\\"")
