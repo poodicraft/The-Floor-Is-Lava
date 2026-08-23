@@ -1,6 +1,7 @@
 package com.paperjump.data
 
 import android.content.Context
+import com.paperjump.ai.AiProtocol
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -30,7 +31,19 @@ data class AppSettings(
     val showTimer: Boolean = true,
     /** The last release whose "what's new" the player has seen, so it is shown once. */
     val lastSeenVersion: String = "",
+    /**
+     * The player's own Hugging Face key, for the AI level designer.
+     *
+     * Kept on the device and nowhere else. It is never bundled into the app: a key baked
+     * into an APK can be read straight back out of it by anybody who has the file, so this
+     * one is typed in once and stays here.
+     */
+    val aiToken: String = "",
+    /** Which hosted vision model to ask. A setting so a model going away is not a rebuild. */
+    val aiModel: String = AiProtocol.DEFAULT_MODEL,
 ) {
+    val hasAiKey: Boolean get() = aiToken.isNotBlank()
+
     companion object {
         const val MIN_CONTROL_SCALE = 0.75f
         const val MAX_CONTROL_SCALE = 1.35f
@@ -70,6 +83,9 @@ class SettingsRepository(context: Context) {
             showTimer = preferences.getBoolean(KEY_SHOW_TIMER, defaults.showTimer),
             lastSeenVersion = preferences.getString(KEY_LAST_SEEN_VERSION, null)
                 ?: defaults.lastSeenVersion,
+            aiToken = preferences.getString(KEY_AI_TOKEN, null) ?: defaults.aiToken,
+            aiModel = preferences.getString(KEY_AI_MODEL, null)?.takeIf { it.isNotBlank() }
+                ?: defaults.aiModel,
         )
     }
 
@@ -81,6 +97,8 @@ class SettingsRepository(context: Context) {
             .putBoolean(KEY_JUMP_ON_RIGHT, settings.jumpOnRight)
             .putBoolean(KEY_SHOW_TIMER, settings.showTimer)
             .putString(KEY_LAST_SEEN_VERSION, settings.lastSeenVersion)
+            .putString(KEY_AI_TOKEN, settings.aiToken)
+            .putString(KEY_AI_MODEL, settings.aiModel)
             .apply()
     }
 
@@ -92,5 +110,7 @@ class SettingsRepository(context: Context) {
         const val KEY_JUMP_ON_RIGHT = "jump_on_right"
         const val KEY_SHOW_TIMER = "show_timer"
         const val KEY_LAST_SEEN_VERSION = "last_seen_version"
+        const val KEY_AI_TOKEN = "ai_token"
+        const val KEY_AI_MODEL = "ai_model"
     }
 }

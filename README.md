@@ -44,6 +44,22 @@ size in a way that ignores the detail slider, the same property the physics alre
 
 Anything else on the page (paper colour, shadows, faint grid lines) is ignored.
 
+### Or draw anything at all
+
+"Draw anything" is a second, optional route: draw whatever you like with no colour code and
+a hosted vision model designs a level from the picture. It needs a free Hugging Face key,
+which is typed into Settings and kept on the device — the app never ships one, because a key
+compiled into an APK can be read straight back out of it.
+
+The model's answer is not trusted with anything: it comes back as a plan in normalised
+coordinates, which `PlanPainter` paints as an ordinary sketch in the app's own ink colours,
+which the ordinary detector then reads. So the AI designs the level and the app still builds
+it — an AI level is saved, re-tuned and replayed like any other, and needs neither key nor
+signal the second time. If the call fails for any reason, the drawing is read the ordinary
+way instead.
+
+This is the only part of the app that uses the network.
+
 ### Tips for a good level
 
 * Draw on white or light paper with a **thick, dark** pen — a fine pencil line can be

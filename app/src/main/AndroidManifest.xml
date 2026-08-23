@@ -3,6 +3,9 @@
 
     <uses-permission android:name="android.permission.CAMERA" />
 
+    <!-- Only the optional AI level designer goes online; everything else works offline. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Playable without a camera: the gallery picker and the sample sketch still work. -->
     <uses-feature
         android:name="android.hardware.camera.any"

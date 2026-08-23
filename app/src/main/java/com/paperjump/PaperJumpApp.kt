@@ -14,6 +14,7 @@ import androidx.navigation.compose.rememberNavController
 import com.paperjump.capture.CameraScreen
 import com.paperjump.draw.DrawingScreen
 import com.paperjump.game.GameView
+import com.paperjump.ui.FreeDrawScreen
 import com.paperjump.ui.HomeScreen
 import com.paperjump.ui.HowToPlayScreen
 import com.paperjump.ui.LevelLibraryScreen
@@ -34,6 +35,7 @@ object Routes {
     const val HOW_TO_PLAY = "how_to_play"
     const val SETTINGS = "settings"
     const val WHATS_NEW = "whats_new"
+    const val FREE_DRAW = "free_draw"
 }
 
 /**
@@ -100,6 +102,31 @@ fun PaperJumpApp(
                 onHowToPlay = { navController.navigate(Routes.HOW_TO_PLAY) },
                 onSettings = { navController.navigate(Routes.SETTINGS) },
                 onWhatsNew = { navController.navigate(Routes.WHATS_NEW) },
+                onFreeDraw = { navController.navigate(Routes.FREE_DRAW) },
+            )
+        }
+
+        composable(Routes.FREE_DRAW) {
+            // The build runs while this screen is still up, so a failure can be explained
+            // here rather than on a game picker that would have no idea what went wrong.
+            val ready = viewModel.aiLevelReady
+            LaunchedEffect(ready) {
+                if (viewModel.consumeAiLevelReady()) navController.navigate(Routes.MODE)
+            }
+
+            FreeDrawScreen(
+                controller = viewModel.freeDrawController,
+                hint = viewModel.freeDrawHint,
+                state = viewModel.aiState,
+                hasKey = settings.hasAiKey,
+                onHintChange = viewModel::updateFreeDrawHint,
+                onBuild = { document, aspect -> viewModel.buildLevelWithAi(document, aspect) },
+                onPlayAnyway = { navController.navigate(Routes.MODE) },
+                onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+                onBack = {
+                    viewModel.clearAiState()
+                    navController.popBackStack()
+                },
             )
         }
 

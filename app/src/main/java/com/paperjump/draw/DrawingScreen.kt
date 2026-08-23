@@ -71,6 +71,14 @@ fun DrawingScreen(
     onPlay: (DrawingState, Float) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    title: String = "Draw a level",
+    subtitle: String = "Ground, lava, coins, a start and a flag",
+    actionLabel: String = "Play this level",
+    actionEnabled: Boolean = true,
+    /** The element checklist only makes sense where the colours mean something. */
+    showChecklist: Boolean = true,
+    /** Room under the sheet for whatever the caller needs — a note field, a status line. */
+    footer: @Composable () -> Unit = {},
 ) {
     var paperSize by remember { mutableStateOf(IntSize.Zero) }
     val document = controller.document
@@ -86,8 +94,8 @@ fun DrawingScreen(
 
     Column(modifier = modifier.fillMaxSize().safeDrawingPadding()) {
         ScreenHeader(
-            title = "Draw a level",
-            subtitle = "Ground, lava, coins, a start and a flag",
+            title = title,
+            subtitle = subtitle,
             onBack = onBack,
             trailing = {
                 Row {
@@ -163,17 +171,21 @@ fun DrawingScreen(
             }
         }
 
-        Checklist(
-            document = document,
-            onPick = { controller.tool = it },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        )
+        if (showChecklist) {
+            Checklist(
+                document = document,
+                onPick = { controller.tool = it },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            )
+        }
+
+        footer()
 
         PaperButton(
-            text = "Play this level",
+            text = actionLabel,
             icon = Icons.Rounded.PlayArrow,
             onClick = { onPlay(document, aspect) },
-            enabled = !document.isEmpty,
+            enabled = actionEnabled && !document.isEmpty,
             accent = SpringGreen,
             modifier = Modifier
                 .fillMaxWidth()

@@ -105,6 +105,14 @@ fun HowToPlayScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                 }
             }
 
+            SectionLabel("Draw anything (AI)")
+            Card {
+                Bullet("The ordinary way of making a level needs the colour code above. \"Draw anything\" does not: draw whatever you like and a vision model designs a level out of the picture.")
+                Bullet("It needs your own free Hugging Face key, pasted into Settings. It stays on this phone, and it is the only part of the app that ever goes online.")
+                Bullet("What the model designs is painted as an ordinary sketch and read by the ordinary detector, so the level is saved, re-tuned and replayed like any other — with no key and no signal the second time.")
+                Bullet("If the model cannot be reached, your drawing is read the ordinary way instead, so there is always something to play.")
+            }
+
             SectionLabel("Creatures")
             Card {
                 Bullet("A purple mark becomes a creature. Drawn on a ledge it walks that ledge, turning round at the ends; drawn in mid-air it paces on the spot.")

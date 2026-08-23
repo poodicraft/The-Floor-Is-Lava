@@ -28,8 +28,8 @@ import com.paperjump.ui.theme.LavaOrange
 /**
  * The release notes, in the app.
  *
- * Kept here rather than in a file the app downloads: there is no network anywhere in Paper
- * Jump, and a changelog is small enough to ship. The newest release is first, and the app
+ * Kept here rather than in a file the app fetches: nothing but the optional AI designer
+ * goes online, and a changelog is small enough to ship. The newest release is first, and the app
  * opens this screen once by itself after an update — see [Release.LATEST].
  */
 data class Release(val version: String, val headline: String, val changes: List<String>) {
@@ -38,6 +38,24 @@ data class Release(val version: String, val headline: String, val changes: List<
         val LATEST: String get() = ALL.first().version
 
         val ALL = listOf(
+            Release(
+                version = "1.7",
+                headline = "Draw anything, and the app is now PaperEngine",
+                changes = listOf(
+                    "New on the menu: \"Draw anything\". Draw a castle, a face, a racetrack " +
+                        "— anything at all, with no colour code — and a vision model on " +
+                        "Hugging Face designs a level out of it.",
+                    "It needs your own free Hugging Face key, which you paste into " +
+                        "Settings and which never leaves the phone. Everything else in the " +
+                        "app still works with no network at all.",
+                    "What the model designs is painted as an ordinary sketch and read by " +
+                        "the ordinary detector, so an AI level is saved, re-tuned and " +
+                        "replayed like any other — no key needed the second time.",
+                    "If the model cannot be reached, your drawing is still read the normal " +
+                        "way, so you always come back with something to play.",
+                    "The app is called PaperEngine now.",
+                ),
+            ),
             Release(
                 version = "1.6",
                 headline = "Creatures, cleaner lines, a proper eraser",

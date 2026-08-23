@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Brush
 import androidx.compose.material.icons.rounded.HelpOutline
 import androidx.compose.material.icons.rounded.PhotoCamera
@@ -43,6 +44,7 @@ import com.paperjump.ui.components.MenuTile
 import com.paperjump.ui.components.PaperBackdrop
 import com.paperjump.ui.components.StatChip
 import com.paperjump.ui.theme.CoinGold
+import com.paperjump.ui.theme.CreatureViolet
 import com.paperjump.ui.theme.LavaOrange
 import com.paperjump.ui.theme.SkyBlue
 import com.paperjump.ui.theme.SpringGreen
@@ -60,6 +62,7 @@ fun HomeScreen(
     onHowToPlay: () -> Unit,
     onSettings: () -> Unit,
     onWhatsNew: () -> Unit,
+    onFreeDraw: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -125,6 +128,13 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                MenuTile(
+                    title = "Draw anything",
+                    subtitle = "Any picture — AI turns it into a level",
+                    icon = Icons.Rounded.AutoAwesome,
+                    accent = CreatureViolet,
+                    onClick = onFreeDraw,
+                )
                 MenuTile(
                     title = "Photograph a sketch",
                     subtitle = "Turn a real drawing into a level",
@@ -218,7 +228,7 @@ private fun Title() {
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            text = "Paper Jump",
+            text = "PaperEngine",
             style = MaterialTheme.typography.displaySmall,
             color = MaterialTheme.colorScheme.onBackground,
         )

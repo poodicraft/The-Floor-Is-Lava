@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Paper Jump"
+rootProject.name = "PaperEngine"
 include(":app")

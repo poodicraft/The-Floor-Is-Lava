@@ -18,6 +18,7 @@ import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -29,7 +30,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.paperjump.ai.AiProtocol
 import com.paperjump.data.AppSettings
 import com.paperjump.data.ThemeChoice
 import com.paperjump.ui.components.PaperOutlineButton
@@ -102,6 +106,12 @@ fun SettingsScreen(
                 onCheckedChange = { value -> onSettingsChange { it.copy(showTimer = value) } },
             )
 
+            SectionLabel("AI level designer")
+            AiKeySetting(
+                settings = settings,
+                onSettingsChange = onSettingsChange,
+            )
+
             SectionLabel("Saved data")
             PaperOutlineButton(
                 text = "Clear personal bests",
@@ -131,10 +141,12 @@ fun SettingsScreen(
                 border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Paper Jump $versionName", style = MaterialTheme.typography.titleMedium)
+                    Text("PaperEngine $versionName", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        text = "Photograph or draw a level, and play it as a platformer. " +
-                            "Everything stays on this device — no account, no network.",
+                        text = "Photograph or draw a level, and play it four ways. Everything " +
+                            "stays on this device and there is no account — the only thing " +
+                            "that ever goes online is the optional AI level designer, and " +
+                            "only when you ask it to.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 6.dp),
@@ -173,6 +185,86 @@ fun SettingsScreen(
             },
             onDismiss = { confirmingClearRecords = false },
         )
+    }
+}
+
+/**
+ * Where the player's own Hugging Face key lives.
+ *
+ * Typed in rather than shipped: a key compiled into an APK can be pulled straight back out
+ * of the file by anyone who has it, so the app never carries one. The model is editable
+ * beside it because hosted models come and go, and a model going away should be a line of
+ * text to change rather than a new build.
+ */
+@Composable
+private fun AiKeySetting(
+    settings: AppSettings,
+    onSettingsChange: ((AppSettings) -> AppSettings) -> Unit,
+) {
+    var showKey by remember { mutableStateOf(false) }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = "\"Draw anything\" sends your drawing to a vision model on Hugging " +
+                    "Face and builds the level it designs. It needs a free key from " +
+                    "huggingface.co/settings/tokens — a read token, or a fine-grained one " +
+                    "with \"Make calls to Inference Providers\" ticked.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            OutlinedTextField(
+                value = settings.aiToken,
+                onValueChange = { value -> onSettingsChange { it.copy(aiToken = value.trim()) } },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Hugging Face key") },
+                placeholder = { Text("hf_…") },
+                visualTransformation = if (showKey) {
+                    VisualTransformation.None
+                } else {
+                    PasswordVisualTransformation()
+                },
+                trailingIcon = {
+                    TextButton(onClick = { showKey = !showKey }) {
+                        Text(if (showKey) "Hide" else "Show")
+                    }
+                },
+            )
+
+            OutlinedTextField(
+                value = settings.aiModel,
+                onValueChange = { value -> onSettingsChange { it.copy(aiModel = value.trim()) } },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Model") },
+            )
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PaperOutlineButton(
+                    text = "Reset model",
+                    onClick = { onSettingsChange { it.copy(aiModel = AiProtocol.DEFAULT_MODEL) } },
+                    modifier = Modifier.weight(1f),
+                    accent = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                PaperOutlineButton(
+                    text = "Forget key",
+                    onClick = { onSettingsChange { it.copy(aiToken = "") } },
+                    enabled = settings.hasAiKey,
+                    modifier = Modifier.weight(1f),
+                    accent = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
     }
 }
 

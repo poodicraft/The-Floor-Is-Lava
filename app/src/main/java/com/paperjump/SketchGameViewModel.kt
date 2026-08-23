@@ -14,6 +14,9 @@ import com.paperjump.data.PlayerStats
 import com.paperjump.data.RecordKey
 import com.paperjump.data.RecordStore
 import com.paperjump.data.SavedLevelMeta
+import com.paperjump.ai.AiLevelClient
+import com.paperjump.ai.AiOutcome
+import com.paperjump.ai.PlanPainter
 import com.paperjump.data.SettingsRepository
 import com.paperjump.draw.DrawingController
 import com.paperjump.draw.DrawingState
@@ -22,6 +25,7 @@ import com.paperjump.game.GameSetup
 import com.paperjump.processing.ImageProcessor
 import com.paperjump.processing.LevelData
 import com.paperjump.processing.ProcessingConfig
+import com.paperjump.ui.AiBuildState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -49,6 +53,38 @@ class SketchGameViewModel(application: Application) : AndroidViewModel(applicati
 
     /** The sketchpad, kept here so a drawing survives navigating away and back. */
     val drawingController = DrawingController()
+
+    /**
+     * A second, separate sketchpad for the AI route.
+     *
+     * Its own document on purpose: the two ways of drawing mean different things, and
+     * wandering into "Draw anything" should not scribble over the level you were halfway
+     * through drawing by the colour code.
+     */
+    val freeDrawController = DrawingController()
+
+    /** The optional "what is it?" note that goes to the model with the picture. */
+    var freeDrawHint: String by mutableStateOf("")
+        private set
+
+    var aiState: AiBuildState by mutableStateOf(AiBuildState.Idle)
+        private set
+
+    /**
+     * Set when an AI build finished cleanly and the game picker should open itself.
+     *
+     * A one-shot flag rather than a navigation call from the view model: the view model has
+     * no business knowing about the back stack, and a plain "level is ready" boolean would
+     * fire again every time the player walked back to this screen.
+     */
+    var aiLevelReady: Boolean by mutableStateOf(false)
+        private set
+
+    fun consumeAiLevelReady(): Boolean {
+        if (!aiLevelReady) return false
+        aiLevelReady = false
+        return true
+    }
 
     var sketch: Bitmap? by mutableStateOf(null)
         private set
@@ -134,6 +170,91 @@ class SketchGameViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    // ---- the AI level designer ------------------------------------------------------
+
+    fun updateFreeDrawHint(text: String) {
+        freeDrawHint = text
+    }
+
+    /** Called when the screen is left, so a stale error is not waiting on the way back in. */
+    fun clearAiState() {
+        aiState = AiBuildState.Idle
+        aiLevelReady = false
+    }
+
+    /**
+     * Sends a free drawing to the model and builds whatever it designs.
+     *
+     * The model's answer is painted as an ordinary sketch and read by the ordinary
+     * detector — see [PlanPainter] — so what lands in the library is a normal level that
+     * needs neither a key nor a signal ever again.
+     *
+     * If anything at all goes wrong, the drawing is still read the ordinary way. Coming
+     * back from "turn this into a game" with nothing to play would be the worst outcome of
+     * the lot, and a drawing always makes *some* level.
+     */
+    fun buildLevelWithAi(document: DrawingState, aspect: Float) {
+        val settings = settingsRepository.settings
+        val note = freeDrawHint
+
+        processingJob?.cancel()
+        processingJob = viewModelScope.launch {
+            aiState = AiBuildState.Working("Reading your drawing…")
+            aiLevelReady = false
+            isProcessing = true
+            errorMessage = null
+            currentSavedId = null
+            level = null
+
+            try {
+                val drawn = withContext(Dispatchers.Default) {
+                    StrokeRasterizer.rasterize(document.strokes, aspect)
+                }
+
+                aiState = AiBuildState.Working("Designing a level from it…")
+                val outcome = AiLevelClient.planLevel(
+                    drawing = drawn,
+                    hint = note,
+                    token = settings.aiToken,
+                    model = settings.aiModel,
+                )
+
+                val designed = (outcome as? AiOutcome.Success)?.plan
+                val page = if (designed != null) {
+                    withContext(Dispatchers.Default) { PlanPainter.paint(designed, aspect) }
+                } else {
+                    drawn
+                }
+
+                aiState = AiBuildState.Working("Building it…")
+                sketch = page
+                source = LevelSource.DRAWN
+                config = ProcessingConfig()
+                level = withContext(Dispatchers.Default) { ImageProcessor.process(page, config) }
+                isProcessing = false
+
+                // A clean build walks straight on to the game picker. A failed one stays
+                // put, so the player finds out *why* rather than silently getting the
+                // ordinary reading of their drawing and wondering where the AI went.
+                aiState = when (outcome) {
+                    is AiOutcome.Success -> AiBuildState.Idle
+                    is AiOutcome.Failure -> AiBuildState.Failed(outcome.message, builtAnyway = true)
+                }
+                aiLevelReady = outcome is AiOutcome.Success
+                autoSave(name = designed?.title)
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (error: Throwable) {
+                isProcessing = false
+                errorMessage = "Could not build that drawing: ${error.message}"
+                aiState = AiBuildState.Failed(
+                    message = "Could not build that drawing: ${error.message}",
+                    builtAnyway = false,
+                )
+            }
+        }
+    }
+
     /** Slider moved on the tuning screen. */
     fun updateConfig(newConfig: ProcessingConfig) {
         if (newConfig == config) return
@@ -192,13 +313,15 @@ class SketchGameViewModel(application: Application) : AndroidViewModel(applicati
      * cheap to keep — an image and four numbers. Renaming and deleting are still there for
      * tidying up afterwards.
      */
-    private fun autoSave() {
+    private fun autoSave(name: String? = null) {
         val bitmap = sketch ?: return
         if (currentSavedId != null) return
         val currentConfig = config
         val currentSource = source
+        // The model names what it designed; everything else is named after when it was made.
+        val title = name?.trim()?.ifBlank { null } ?: autoSaveName(currentSource)
         viewModelScope.launch {
-            val meta = levelStore.save(bitmap, autoSaveName(currentSource), currentSource, currentConfig)
+            val meta = levelStore.save(bitmap, title, currentSource, currentConfig)
             currentSavedId = meta.id
             refreshLibrary()
         }
