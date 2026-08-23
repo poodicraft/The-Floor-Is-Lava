@@ -221,6 +221,14 @@ class SketchGameViewModel(application: Application) : AndroidViewModel(applicati
                     appSecret = BuildConfig.AI_APP_SECRET,
                 )
 
+                // Remember whichever model actually answered, so the next drawing does not
+                // spend a round trip rediscovering that the first choice is not being served.
+                (outcome as? AiOutcome.Success)?.let { success ->
+                    if (success.model != settings.aiModel) {
+                        settingsRepository.update { it.copy(aiModel = success.model) }
+                    }
+                }
+
                 val designed = (outcome as? AiOutcome.Success)?.plan
                 val page = if (designed != null) {
                     withContext(Dispatchers.Default) { PlanPainter.paint(designed, aspect) }

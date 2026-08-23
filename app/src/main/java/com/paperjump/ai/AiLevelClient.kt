@@ -13,7 +13,8 @@ import kotlin.math.roundToInt
 
 /** What one attempt at turning a drawing into a level came back with. */
 sealed interface AiOutcome {
-    data class Success(val plan: LevelPlan) : AiOutcome
+    /** @param model the one that actually answered, which may not be the one asked for */
+    data class Success(val plan: LevelPlan, val model: String) : AiOutcome
     data class Failure(val message: String) : AiOutcome
 }
 
@@ -53,42 +54,61 @@ object AiLevelClient {
             )
         }
 
-        val body = AiProtocol.chatRequest(
-            model = model.ifBlank { AiProtocol.DEFAULT_MODEL },
-            imageDataUrl = dataUrl(drawing),
-            hint = hint,
-        )
-
+        val imageDataUrl = dataUrl(drawing)
         val endpoint = if (viaProxy) proxyUrl.trim() else AiProtocol.ENDPOINT
-        val response = runCatching {
-            // Through a proxy the app sends no key at all — that is the whole point of it.
-            post(endpoint, body, if (viaProxy) "" else token, appSecret)
-        }.getOrElse { error ->
-            return@withContext AiOutcome.Failure(
-                when (error) {
-                    is UnknownHostException ->
-                        "Could not reach the level designer. Check the phone's connection."
-                    else -> "Could not reach the level designer (${error.javaClass.simpleName})."
-                },
-            )
+
+        // Try the chosen model first, then the rest of the list. Which provider serves
+        // which model changes without notice, so one name is not something to rely on.
+        val candidates = buildList {
+            model.trim().takeIf { it.isNotEmpty() }?.let { add(it) }
+            AiProtocol.MODEL_CANDIDATES.forEach { if (it !in this) add(it) }
         }
 
-        if (response.status !in 200..299) {
-            return@withContext AiOutcome.Failure(
-                AiProtocol.failureMessage(response.status, response.body),
+        var lastFailure = "Hugging Face did not answer."
+        for (candidate in candidates) {
+            val body = AiProtocol.chatRequest(
+                model = candidate,
+                imageDataUrl = imageDataUrl,
+                hint = hint,
             )
+
+            val response = runCatching {
+                // Through a proxy the app sends no key at all — that is the whole point.
+                post(endpoint, body, if (viaProxy) "" else token, appSecret)
+            }.getOrElse { error ->
+                // A network failure will not be cured by asking for a different model.
+                return@withContext AiOutcome.Failure(
+                    when (error) {
+                        is UnknownHostException ->
+                            "Could not reach the level designer. Check the phone's connection."
+                        else -> "Could not reach the level designer (${error.javaClass.simpleName})."
+                    },
+                )
+            }
+
+            if (response.status !in 200..299) {
+                lastFailure = AiProtocol.failureMessage(response.status, response.body)
+                if (AiProtocol.worthTryingAnotherModel(response.status, response.body)) continue
+                return@withContext AiOutcome.Failure(lastFailure)
+            }
+
+            val reply = AiProtocol.replyText(response.body)
+            if (reply == null) {
+                lastFailure = "Hugging Face sent a reply I could not read."
+                continue
+            }
+
+            val plan = LevelPlan.parse(reply)
+            if (plan == null) {
+                lastFailure = "The model did not describe a level it could build. Try again, " +
+                    "or add a note saying what you drew."
+                continue
+            }
+
+            return@withContext AiOutcome.Success(plan, candidate)
         }
 
-        val reply = AiProtocol.replyText(response.body)
-            ?: return@withContext AiOutcome.Failure("Hugging Face sent a reply I could not read.")
-
-        val plan = LevelPlan.parse(reply)
-            ?: return@withContext AiOutcome.Failure(
-                "The model did not describe a level it could build. Try again, or add a " +
-                    "note saying what you drew.",
-            )
-
-        AiOutcome.Success(plan)
+        AiOutcome.Failure(lastFailure)
     }
 
     private class Response(val status: Int, val body: String)

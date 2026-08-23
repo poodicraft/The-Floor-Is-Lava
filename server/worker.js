@@ -22,8 +22,10 @@ const MAX_TOKENS = 1500;
 const ALLOWED_MODELS = [
   "Qwen/Qwen2.5-VL-7B-Instruct",
   "Qwen/Qwen2.5-VL-32B-Instruct",
+  "Qwen/Qwen2.5-VL-72B-Instruct",
   "meta-llama/Llama-3.2-11B-Vision-Instruct",
   "google/gemma-3-27b-it",
+  "mistralai/Mistral-Small-3.1-24B-Instruct-2503",
 ];
 
 const UPSTREAM = "https://router.huggingface.co/v1/chat/completions";

@@ -8,6 +8,7 @@ import com.paperjump.ai.asList
 import com.paperjump.ai.asText
 import com.paperjump.ai.get
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -206,7 +207,7 @@ class AiProtocolTest {
 
         assertTrue(AiProtocol.failureMessage(402, "").contains("credits"))
         assertTrue(AiProtocol.failureMessage(503, "").contains("warming up"))
-        assertTrue(AiProtocol.failureMessage(404, "").contains(AiProtocol.DEFAULT_MODEL))
+        assertTrue(AiProtocol.failureMessage(404, "").contains("inference-providers"))
         assertTrue(AiProtocol.failureMessage(418, "").contains("418"))
     }
 
@@ -214,5 +215,49 @@ class AiProtocolTest {
     fun `an error body that is not json is still shown`() {
         val message = AiProtocol.failureMessage(500, "upstream exploded")
         assertTrue(message.contains("upstream exploded"))
+    }
+
+    // ---- surviving the provider landscape moving ---------------------------------------
+
+    @Test
+    fun `the real 400 from Hugging Face is treated as try another model`() {
+        // Verbatim from the first live call: the model was fine, the account's providers
+        // were not serving it.
+        val body = """
+            {"error":"The requested model 'Qwen/Qwen2.5-VL-7B-Instruct' is not supported by
+             any provider you have enabled."}
+        """.trimIndent()
+
+        assertTrue(AiProtocol.worthTryingAnotherModel(400, body))
+        assertTrue(AiProtocol.worthTryingAnotherModel(404, ""))
+    }
+
+    @Test
+    fun `a problem the player has to fix is not worth another model`() {
+        assertFalse("a bad key stays bad", AiProtocol.worthTryingAnotherModel(401, ""))
+        assertFalse("so does an empty wallet", AiProtocol.worthTryingAnotherModel(402, ""))
+        assertFalse(AiProtocol.worthTryingAnotherModel(429, ""))
+        assertFalse(AiProtocol.worthTryingAnotherModel(503, ""))
+        assertFalse(
+            "a 400 about something else is not a model problem",
+            AiProtocol.worthTryingAnotherModel(400, """{"error":"image too large"}"""),
+        )
+    }
+
+    @Test
+    fun `the model list starts with the default and has no duplicates`() {
+        assertEquals(AiProtocol.DEFAULT_MODEL, AiProtocol.MODEL_CANDIDATES.first())
+        assertEquals(
+            AiProtocol.MODEL_CANDIDATES.size,
+            AiProtocol.MODEL_CANDIDATES.toSet().size,
+        )
+        assertTrue("a fallback is only useful if there is one", AiProtocol.MODEL_CANDIDATES.size > 1)
+    }
+
+    @Test
+    fun `the message for a missing provider says where to click`() {
+        val message = AiProtocol.failureMessage(400, """{"error":"not supported by any provider"}""")
+        assertTrue(message.contains("inference-providers"))
+        assertTrue("the provider's own words are still shown", message.contains("not supported"))
     }
 }
