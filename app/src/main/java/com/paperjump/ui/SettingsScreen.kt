@@ -189,11 +189,15 @@ fun SettingsScreen(
 }
 
 /**
- * Where the key for the level designer lives.
+ * What the settings screen says about the level designer, which is as little as possible.
  *
- * There is no service to choose: the key says who issued it. The model is editable beside
- * it because hosted models come and go, and a model going away should be a line of text to
- * change rather than a new build.
+ * When the build already carries a key — the ordinary case, since it comes from a
+ * repository secret at build time — this is one line saying so and nothing to fill in. A
+ * key box on a screen where no key is needed is not a setting, it is homework, and it made
+ * a feature that works look like one that is waiting for you.
+ *
+ * The boxes are still there for the build that has no key, and behind "Change the key" for
+ * anyone who wants a different one. Nobody else ever sees them.
  */
 @Composable
 private fun AiKeySetting(
@@ -201,6 +205,12 @@ private fun AiKeySetting(
     onSettingsChange: ((AppSettings) -> AppSettings) -> Unit,
 ) {
     var showKey by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf(false) }
+
+    // With no key there is nothing to reveal and no point in a "change it" button: the
+    // boxes *are* the screen. With one, they stay shut until asked for.
+    val ready = settings.canUseAi
+    val showFields = editing || !ready
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -215,11 +225,11 @@ private fun AiKeySetting(
             Text(
                 text = when {
                     settings.aiProxyUrl.isNotBlank() ->
-                        "\"Draw anything\" is set up and ready: this build talks to your own " +
-                            "server, which holds the key. There is nothing to fill in here."
-                    settings.aiToken.isNotBlank() ->
-                        "\"Draw anything\" is ready, using ${settings.aiProvider.label}. Your " +
-                            "key is stored on this phone only."
+                        "Ready. This build asks your own server, which holds the key — there " +
+                            "is nothing to fill in."
+                    ready ->
+                        "Ready to use, with ${settings.aiProvider.label}. The key came with " +
+                            "this build and stays on this phone."
                     else ->
                         "\"Draw anything\" sends your drawing to a vision model and builds the " +
                             "level it designs back. It needs a free key from " +
@@ -230,61 +240,82 @@ private fun AiKeySetting(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            OutlinedTextField(
-                value = settings.aiProxyUrl,
-                onValueChange = { value -> onSettingsChange { it.copy(aiProxyUrl = value.trim()) } },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = { Text("Server that holds the key (optional)") },
-                placeholder = { Text("https://…workers.dev") },
-            )
+            if (ready && !editing) {
+                TextButton(
+                    onClick = { editing = true },
+                    modifier = Modifier.align(Alignment.End),
+                ) {
+                    Text("Use a different key")
+                }
+            }
 
-            OutlinedTextField(
-                value = settings.aiToken,
-                enabled = settings.aiProxyUrl.isBlank(),
-                onValueChange = { value -> onSettingsChange { it.copy(aiToken = value.trim()) } },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = { Text("Key") },
-                placeholder = { Text("AQ.… or AIza…") },
-                visualTransformation = if (showKey) {
-                    VisualTransformation.None
-                } else {
-                    PasswordVisualTransformation()
-                },
-                trailingIcon = {
-                    TextButton(onClick = { showKey = !showKey }) {
-                        Text(if (showKey) "Hide" else "Show")
+            if (showFields) {
+                OutlinedTextField(
+                    value = settings.aiProxyUrl,
+                    onValueChange = { value ->
+                        onSettingsChange { it.copy(aiProxyUrl = value.trim()) }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("Server that holds the key (optional)") },
+                    placeholder = { Text("https://…workers.dev") },
+                )
+
+                OutlinedTextField(
+                    value = settings.aiToken,
+                    enabled = settings.aiProxyUrl.isBlank(),
+                    onValueChange = { value ->
+                        onSettingsChange { it.copy(aiToken = value.trim()) }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("Key") },
+                    placeholder = { Text("AQ.… or AIza…") },
+                    visualTransformation = if (showKey) {
+                        VisualTransformation.None
+                    } else {
+                        PasswordVisualTransformation()
+                    },
+                    trailingIcon = {
+                        TextButton(onClick = { showKey = !showKey }) {
+                            Text(if (showKey) "Hide" else "Show")
+                        }
+                    },
+                )
+
+                OutlinedTextField(
+                    value = settings.aiModel,
+                    onValueChange = { value ->
+                        onSettingsChange { it.copy(aiModel = value.trim()) }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("Model (optional)") },
+                    placeholder = { Text(settings.aiProvider.defaultModel) },
+                    supportingText = {
+                        Text("Empty means whatever is being served — the usual answer.")
+                    },
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PaperOutlineButton(
+                        text = "Forget key",
+                        onClick = {
+                            onSettingsChange { it.copy(aiToken = "", aiModel = "") }
+                        },
+                        enabled = settings.aiToken.isNotBlank(),
+                        modifier = Modifier.weight(1f),
+                        accent = MaterialTheme.colorScheme.error,
+                    )
+                    if (editing) {
+                        PaperOutlineButton(
+                            text = "Done",
+                            onClick = { editing = false },
+                            modifier = Modifier.weight(1f),
+                            accent = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
-                },
-            )
-
-            OutlinedTextField(
-                value = settings.aiModel,
-                onValueChange = { value -> onSettingsChange { it.copy(aiModel = value.trim()) } },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = { Text("Model (optional)") },
-                placeholder = { Text(settings.aiProvider.defaultModel) },
-                supportingText = {
-                    Text("Leave this empty and the app asks for whatever is being served.")
-                },
-            )
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PaperOutlineButton(
-                    text = "Clear model",
-                    onClick = { onSettingsChange { it.copy(aiModel = "") } },
-                    modifier = Modifier.weight(1f),
-                    accent = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                PaperOutlineButton(
-                    text = "Forget key",
-                    onClick = { onSettingsChange { it.copy(aiToken = "") } },
-                    enabled = settings.hasAiKey,
-                    modifier = Modifier.weight(1f),
-                    accent = MaterialTheme.colorScheme.error,
-                )
+                }
             }
         }
     }

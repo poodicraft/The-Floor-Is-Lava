@@ -221,10 +221,4 @@ class GoogleProtocolTest {
         assertEquals("x-goog-api-key" to "AIzaX", AiProvider.GOOGLE.authHeader(" AIzaX "))
         assertEquals("Authorization" to "Bearer hf_x", AiProvider.HUGGING_FACE.authHeader("hf_x "))
     }
-
-    @Test
-    fun `a model name left over from the other service is recognised`() {
-        assertEquals(AiProvider.HUGGING_FACE, AiProvider.forModel("Qwen/Qwen3-VL-8B-Instruct"))
-        assertEquals(AiProvider.GOOGLE, AiProvider.forModel("gemini-2.5-flash"))
-    }
 }

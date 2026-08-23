@@ -66,17 +66,8 @@ data class AppSettings(
     val aiProvider: AiProvider
         get() = if (aiProxyUrl.isNotBlank()) AiProvider.GOOGLE else AiProvider.forKey(aiToken)
 
-    /**
-     * The model to actually ask for.
-     *
-     * A name left over from the other service is dropped rather than sent: it would cost a
-     * round trip to be told the obvious. That happens on any phone that used the Hugging
-     * Face build and has since been given a Google key.
-     */
-    val aiModelInUse: String
-        get() = aiModel.trim()
-            .takeIf { it.isNotEmpty() && AiProvider.forModel(it) == aiProvider }
-            .orEmpty()
+    /** The model to actually ask for; blank means "whatever is being served". */
+    val aiModelInUse: String get() = aiModel.trim()
 
     companion object {
         const val MIN_CONTROL_SCALE = 0.75f
@@ -123,9 +114,30 @@ class SettingsRepository(context: Context) {
                 ?: BuildConfig.AI_TOKEN,
             aiProxyUrl = preferences.getString(KEY_AI_PROXY, null)?.takeIf { it.isNotBlank() }
                 ?: BuildConfig.AI_PROXY_URL,
-            aiModel = preferences.getString(KEY_AI_MODEL, null)?.takeIf { it.isNotBlank() }
-                ?: defaults.aiModel,
+            aiModel = rememberedModel(),
         )
+    }
+
+    /**
+     * The stored model name, but only if it was stored for the service now in use.
+     *
+     * A model name means nothing outside the service that serves it, and an install that
+     * predates this ever mattering has one saved from Hugging Face. Rather than guess from
+     * the name — which is how the last three model bugs started — the provider is written
+     * down beside it, and anything from a different one (or from before this was recorded)
+     * is dropped. Blank is not a loss: it means the app asks what is being served.
+     */
+    private fun rememberedModel(): String {
+        val stored = preferences.getString(KEY_AI_MODEL, null)?.trim().orEmpty()
+        if (stored.isEmpty()) return ""
+        val storedFor = preferences.getString(KEY_AI_MODEL_PROVIDER, null)
+        val token = preferences.getString(KEY_AI_TOKEN, null)?.takeIf { it.isNotBlank() }
+            ?: BuildConfig.AI_TOKEN
+        val proxy = preferences.getString(KEY_AI_PROXY, null)?.takeIf { it.isNotBlank() }
+            ?: BuildConfig.AI_PROXY_URL
+        val provider =
+            if (proxy.isNotBlank()) AiProvider.GOOGLE else AiProvider.forKey(token)
+        return if (storedFor == provider.name) stored else ""
     }
 
     private fun persist(settings: AppSettings) {
@@ -138,6 +150,7 @@ class SettingsRepository(context: Context) {
             .putString(KEY_LAST_SEEN_VERSION, settings.lastSeenVersion)
             .putString(KEY_AI_TOKEN, settings.aiToken)
             .putString(KEY_AI_MODEL, settings.aiModel)
+            .putString(KEY_AI_MODEL_PROVIDER, settings.aiProvider.name)
             .putString(KEY_AI_PROXY, settings.aiProxyUrl)
             .apply()
     }
@@ -152,6 +165,7 @@ class SettingsRepository(context: Context) {
         const val KEY_LAST_SEEN_VERSION = "last_seen_version"
         const val KEY_AI_TOKEN = "ai_token"
         const val KEY_AI_MODEL = "ai_model"
+        const val KEY_AI_MODEL_PROVIDER = "ai_model_provider"
         const val KEY_AI_PROXY = "ai_proxy_url"
     }
 }

@@ -114,15 +114,5 @@ enum class AiProvider {
                 provider != GOOGLE && provider.keyPrefixes.any { trimmed.startsWith(it) }
             } ?: GOOGLE
         }
-
-        /**
-         * Whose model name this looks like.
-         *
-         * Hugging Face names an owner before a slash — `Qwen/Qwen3-VL-8B-Instruct` —
-         * and Google's never do, which is enough to spot a model setting left behind by
-         * the other service and quietly stop asking for it.
-         */
-        fun forModel(model: String): AiProvider =
-            if ("/" in model.trim()) HUGGING_FACE else GOOGLE
     }
 }
