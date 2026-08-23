@@ -25,6 +25,26 @@ object AiProtocol {
      * when it was chosen. Walking a list costs one wasted round trip in the bad case and
      * makes the feature survive the landscape moving underneath it.
      */
+    /**
+     * Hugging Face's own list of vision models that a provider is actually serving.
+     *
+     * Asked at run time rather than guessed at build time. A hard-coded model name is a
+     * bet on a landscape that moves weekly — the first one this app shipped with had
+     * stopped being served by anybody by the time the app reached a phone. This is the
+     * list the website itself shows, so it cannot go stale.
+     */
+    const val MODELS_ENDPOINT =
+        "https://huggingface.co/api/models" +
+            "?pipeline_tag=image-text-to-text&inference_provider=all&sort=trendingScore&limit=25"
+
+    /** Model ids out of that listing; anything unexpected simply yields nothing. */
+    fun parseModelIds(body: String): List<String> =
+        Json.parse(body).asList()
+            .mapNotNull { it["id"].asText()?.trim() }
+            .filter { it.isNotBlank() && "/" in it }
+            .distinct()
+
+    /** The fallback list, used when the live one cannot be fetched. */
     val MODEL_CANDIDATES: List<String> = listOf(
         DEFAULT_MODEL,
         "Qwen/Qwen2.5-VL-72B-Instruct",

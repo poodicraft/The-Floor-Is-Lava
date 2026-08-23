@@ -35,6 +35,9 @@ object AiLevelClient {
     private const val CONNECT_TIMEOUT_MS = 20_000
     private const val READ_TIMEOUT_MS = 90_000
 
+    /** Looking up the model list must not hold the drawing up for long. */
+    private const val LIST_TIMEOUT_MS = 15_000
+
     /**
      * @param proxyUrl a server that holds the key, or blank to call Hugging Face directly
      * @param token the player's own key; ignored, and not sent, when [proxyUrl] is set
@@ -57,14 +60,20 @@ object AiLevelClient {
         val imageDataUrl = dataUrl(drawing)
         val endpoint = if (viaProxy) proxyUrl.trim() else AiProtocol.ENDPOINT
 
-        // Try the chosen model first, then the rest of the list. Which provider serves
-        // which model changes without notice, so one name is not something to rely on.
+        // Try the chosen model first, then whatever Hugging Face says is being served
+        // right now, then the built-in list. Which provider carries which model changes
+        // without notice, so no single name — and no list written months ago — is
+        // something to rely on.
         val candidates = buildList {
             model.trim().takeIf { it.isNotEmpty() }?.let { add(it) }
+            // Through a proxy the model has to be one the proxy allows, so the live list
+            // is skipped: it would only produce names the proxy is going to refuse.
+            if (!viaProxy) discoverModels(token).forEach { if (it !in this) add(it) }
             AiProtocol.MODEL_CANDIDATES.forEach { if (it !in this) add(it) }
-        }
+        }.take(MAX_MODELS_TRIED)
 
         var lastFailure = "Hugging Face did not answer."
+        var everyModelRefused = true
         for (candidate in candidates) {
             val body = AiProtocol.chatRequest(
                 model = candidate,
@@ -91,6 +100,8 @@ object AiLevelClient {
                 if (AiProtocol.worthTryingAnotherModel(response.status, response.body)) continue
                 return@withContext AiOutcome.Failure(lastFailure)
             }
+            // It answered; whatever went wrong after this is not about availability.
+            everyModelRefused = false
 
             val reply = AiProtocol.replyText(response.body)
             if (reply == null) {
@@ -108,10 +119,50 @@ object AiLevelClient {
             return@withContext AiOutcome.Success(plan, candidate)
         }
 
-        AiOutcome.Failure(lastFailure)
+        AiOutcome.Failure(
+            if (everyModelRefused) {
+                "None of the vision models the app knows about is being served right now. " +
+                    "This is Hugging Face's side, not yours — the free routing drops models " +
+                    "in and out. Try again later, or put a model that works into Settings.\n\n" +
+                    lastFailure
+            } else {
+                lastFailure
+            },
+        )
     }
 
+    /** At most this many round trips before giving up; each one costs the player a wait. */
+    private const val MAX_MODELS_TRIED = 6
+
+    /**
+     * Asks Hugging Face which vision models are currently being served.
+     *
+     * Best effort by design: a failure here is not worth reporting, because the built-in
+     * list is still there and the caller is about to try it.
+     */
+    private fun discoverModels(token: String): List<String> = runCatching {
+        val response = get(AiProtocol.MODELS_ENDPOINT, token)
+        if (response.status in 200..299) AiProtocol.parseModelIds(response.body) else emptyList()
+    }.getOrDefault(emptyList())
+
     private class Response(val status: Int, val body: String)
+
+    private fun get(endpoint: String, token: String): Response {
+        val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = CONNECT_TIMEOUT_MS
+            readTimeout = LIST_TIMEOUT_MS
+            if (token.isNotBlank()) setRequestProperty("Authorization", "Bearer ${token.trim()}")
+            setRequestProperty("Accept", "application/json")
+        }
+        try {
+            val status = connection.responseCode
+            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+            return Response(status, stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty())
+        } finally {
+            connection.disconnect()
+        }
+    }
 
     private fun post(endpoint: String, body: String, token: String, appSecret: String): Response {
         val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {

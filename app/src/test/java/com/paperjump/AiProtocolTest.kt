@@ -260,4 +260,32 @@ class AiProtocolTest {
         assertTrue(message.contains("inference-providers"))
         assertTrue("the provider's own words are still shown", message.contains("not supported"))
     }
+
+    @Test
+    fun `reads the model ids out of a listing`() {
+        val body = """
+            [{"id":"Qwen/Qwen2.5-VL-7B-Instruct","likes":900,"pipeline_tag":"image-text-to-text"},
+             {"id":"google/gemma-3-27b-it","likes":800},
+             {"id":"  meta-llama/Llama-3.2-11B-Vision-Instruct  "},
+             {"likes":5},
+             {"id":"not-a-repo-id"},
+             {"id":"Qwen/Qwen2.5-VL-7B-Instruct"}]
+        """.trimIndent()
+
+        assertEquals(
+            listOf(
+                "Qwen/Qwen2.5-VL-7B-Instruct",
+                "google/gemma-3-27b-it",
+                "meta-llama/Llama-3.2-11B-Vision-Instruct",
+            ),
+            AiProtocol.parseModelIds(body),
+        )
+    }
+
+    @Test
+    fun `a listing that is not a listing yields nothing rather than throwing`() {
+        assertTrue(AiProtocol.parseModelIds("").isEmpty())
+        assertTrue(AiProtocol.parseModelIds("<html>404</html>").isEmpty())
+        assertTrue(AiProtocol.parseModelIds("""{"error":"nope"}""").isEmpty())
+    }
 }
