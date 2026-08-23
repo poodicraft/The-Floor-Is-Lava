@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- lava pool -->
+    <path
+        android:fillColor="#E0341C"
+        android:pathData="M22,86 L86,86 L86,74 Q76,68 68,74 Q58,82 48,74 Q36,66 22,74 Z" />
+    <path
+        android:fillColor="#FF7A29"
+        android:pathData="M22,78 Q36,70 48,78 Q58,86 68,78 Q76,72 86,78 L86,82 Q76,76 68,82 Q58,90 48,82 Q36,74 22,82 Z" />
+    <!-- platform -->
+    <path
+        android:fillColor="#2B2721"
+        android:pathData="M26,62h34v6h-34z" />
+    <!-- player -->
+    <path
+        android:fillColor="#2F6BFF"
+        android:pathData="M36,44 L52,44 A3,3 0 0 1 55,47 L55,59 A3,3 0 0 1 52,62 L36,62 A3,3 0 0 1 33,59 L33,47 A3,3 0 0 1 36,44 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M40,50m-2.6,0a2.6,2.6 0 1,0 5.2,0a2.6,2.6 0 1,0 -5.2,0" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M49,50m-2.6,0a2.6,2.6 0 1,0 5.2,0a2.6,2.6 0 1,0 -5.2,0" />
+    <!-- coin -->
+    <path
+        android:fillColor="#F5C518"
+        android:pathData="M74,44m-6,0a6,6 0 1,0 12,0a6,6 0 1,0 -12,0" />
+</vector>

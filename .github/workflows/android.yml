@@ -2,25 +2,138 @@ name: Android CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main", "claude/**"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
+  workflow_dispatch:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-    - name: set up JDK 11
-      uses: actions/setup-java@v4
-      with:
-        java-version: '11'
-        distribution: 'temurin'
-        cache: gradle
+      - uses: actions/checkout@v4
 
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
-    - name: Build with Gradle
-      run: ./gradlew build
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: temurin
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit tests (detector + physics)
+        run: ./gradlew testDebugUnitTest
+
+      - name: Lint
+        run: ./gradlew lintDebug
+
+      # Says whether the AI level designer was wired up, without ever printing what with.
+      # A build that quietly produced a keyless APK is the failure worth catching early.
+      - name: Report how the AI level designer is configured
+        env:
+          AI_PROXY_URL: ${{ secrets.AI_PROXY_URL }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY || secrets.HF_TOKEN }}
+        run: |
+          if [ -n "$AI_PROXY_URL" ]; then
+            echo "Proxy configured (${#AI_PROXY_URL} characters). The APK will carry no key."
+          elif [ -n "$AI_API_KEY" ]; then
+            echo "Key present (${#AI_API_KEY} characters); it will be built in."
+            # Google issues both AIza… and the newer AQ.… keys, and may well add a third
+            # shape; the app sends anything that is not an hf_ token to Google, so an
+            # unfamiliar prefix is worth a note rather than a warning.
+            case "$AI_API_KEY" in
+              AIza*|AQ.*) echo "Google AI Studio key — the free tier the app is aimed at." ;;
+              hf_*) echo "::warning::Hugging Face token. Their routing needs a payment method on file." ;;
+              *) echo "Unfamiliar prefix; it will be sent to Google AI Studio." ;;
+            esac
+          else
+            echo "::warning::No AI_PROXY_URL and no AI_API_KEY. Draw anything will ask for a key."
+          fi
+
+      - name: Assemble debug APK
+        env:
+          # Optional, and all three default to empty. AI_PROXY_URL / AI_APP_SECRET point the
+          # build at a proxy that holds the key (see server/README.md); AI_API_KEY bakes a
+          # key into the APK instead, which works and is only sensible for a build that
+          # stays on your own phone. HF_TOKEN is the old name for that secret, still read so
+          # that renaming it here did not break a repository that already had one.
+          AI_PROXY_URL: ${{ secrets.AI_PROXY_URL }}
+          AI_APP_SECRET: ${{ secrets.AI_APP_SECRET }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY || secrets.HF_TOKEN }}
+        # Passed as properties, not read from the environment: a reused Gradle daemon keeps
+        # the environment it started with, and would never see these. The shell expands
+        # them, so the log shows the variable names rather than the values.
+        run: >
+          ./gradlew assembleDebug
+          -PaiKey="$AI_API_KEY"
+          -PaiProxyUrl="$AI_PROXY_URL"
+          -PaiAppSecret="$AI_APP_SECRET"
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: paper-jump-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      # A release APK installs on devices that refuse debuggable ones. If the repo has a
+      # RELEASE_KEYSTORE_BASE64 secret it is used, so upgrades keep working; otherwise a
+      # throwaway key is minted here and every build is signed by a different key, which
+      # means the previous install has to be removed before the new APK will go on.
+      - name: Prepare a signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "Signing with the repository's stored key."
+          else
+            keytool -genkeypair -v \
+              -keystore "$RUNNER_TEMP/release.jks" \
+              -alias paperjump -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass throwaway -keypass throwaway \
+              -dname "CN=Paper Jump, O=Paper Jump"
+            echo "Signing with a throwaway key generated for this run."
+          fi
+
+      - name: Assemble release APK
+        env:
+          RELEASE_KEYSTORE: ${{ runner.temp }}/release.jks
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD || 'throwaway' }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS || 'paperjump' }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD || 'throwaway' }}
+          AI_PROXY_URL: ${{ secrets.AI_PROXY_URL }}
+          AI_APP_SECRET: ${{ secrets.AI_APP_SECRET }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY || secrets.HF_TOKEN }}
+        run: >
+          ./gradlew assembleRelease
+          -PaiKey="$AI_API_KEY"
+          -PaiProxyUrl="$AI_PROXY_URL"
+          -PaiAppSecret="$AI_APP_SECRET"
+
+      - name: Check the release APK is signed and not debuggable
+        run: |
+          APK=$(ls app/build/outputs/apk/release/*.apk)
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BUILD_TOOLS/apksigner" verify --print-certs "$APK"
+          "$BUILD_TOOLS/aapt2" dump badging "$APK" | grep -E "^(package|application-debuggable|sdkVersion|targetSdkVersion|native-code)" || true
+          if "$BUILD_TOOLS/aapt2" dump badging "$APK" | grep -q "application-debuggable"; then
+            echo "::error::release APK is debuggable"; exit 1
+          fi
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: paper-jump-release-apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-report
+          path: app/build/reports/tests/testDebugUnitTest
+          if-no-files-found: ignore

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Only used for the pre-Compose window background; the UI palette lives in Theme.kt. -->
+    <color name="ink_black">#FF12100D</color>
+</resources>
