@@ -39,6 +39,20 @@ data class Release(val version: String, val headline: String, val changes: List<
 
         val ALL = listOf(
             Release(
+                version = "1.8",
+                headline = "Nothing to type: the key can live on a server",
+                changes = listOf(
+                    "The AI level designer can now be wired up when the app is built, so it " +
+                        "arrives ready to use with nothing to fill in.",
+                    "The recommended way keeps the key on a tiny free server of your own " +
+                        "rather than inside the app — a key inside an APK can be read " +
+                        "straight back out of the file by anyone who has it. See " +
+                        "server/README.md in the repository; it takes about two minutes.",
+                    "Pasting your own key into Settings still works, and still overrides " +
+                        "whatever the build was given.",
+                ),
+            ),
+            Release(
                 version = "1.7",
                 headline = "Draw anything, and the app is now PaperEngine",
                 changes = listOf(

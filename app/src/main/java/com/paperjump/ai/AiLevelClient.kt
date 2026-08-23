@@ -34,13 +34,20 @@ object AiLevelClient {
     private const val CONNECT_TIMEOUT_MS = 20_000
     private const val READ_TIMEOUT_MS = 90_000
 
+    /**
+     * @param proxyUrl a server that holds the key, or blank to call Hugging Face directly
+     * @param token the player's own key; ignored, and not sent, when [proxyUrl] is set
+     */
     suspend fun planLevel(
         drawing: Bitmap,
         hint: String,
         token: String,
         model: String,
+        proxyUrl: String = "",
+        appSecret: String = "",
     ): AiOutcome = withContext(Dispatchers.IO) {
-        if (token.isBlank()) {
+        val viaProxy = proxyUrl.isNotBlank()
+        if (!viaProxy && token.isBlank()) {
             return@withContext AiOutcome.Failure(
                 "No Hugging Face key yet. Settings → AI level designer is where it goes.",
             )
@@ -52,12 +59,16 @@ object AiLevelClient {
             hint = hint,
         )
 
-        val response = runCatching { post(body, token) }.getOrElse { error ->
+        val endpoint = if (viaProxy) proxyUrl.trim() else AiProtocol.ENDPOINT
+        val response = runCatching {
+            // Through a proxy the app sends no key at all — that is the whole point of it.
+            post(endpoint, body, if (viaProxy) "" else token, appSecret)
+        }.getOrElse { error ->
             return@withContext AiOutcome.Failure(
                 when (error) {
                     is UnknownHostException ->
-                        "Could not reach Hugging Face. Check the phone's connection."
-                    else -> "Could not reach Hugging Face (${error.javaClass.simpleName})."
+                        "Could not reach the level designer. Check the phone's connection."
+                    else -> "Could not reach the level designer (${error.javaClass.simpleName})."
                 },
             )
         }
@@ -82,13 +93,14 @@ object AiLevelClient {
 
     private class Response(val status: Int, val body: String)
 
-    private fun post(body: String, token: String): Response {
-        val connection = (URL(AiProtocol.ENDPOINT).openConnection() as HttpURLConnection).apply {
+    private fun post(endpoint: String, body: String, token: String, appSecret: String): Response {
+        val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             doOutput = true
             connectTimeout = CONNECT_TIMEOUT_MS
             readTimeout = READ_TIMEOUT_MS
-            setRequestProperty("Authorization", "Bearer ${token.trim()}")
+            if (token.isNotBlank()) setRequestProperty("Authorization", "Bearer ${token.trim()}")
+            if (appSecret.isNotBlank()) setRequestProperty("x-paperengine", appSecret.trim())
             setRequestProperty("Content-Type", "application/json")
             setRequestProperty("Accept", "application/json")
         }

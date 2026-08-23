@@ -30,6 +30,14 @@ jobs:
         run: ./gradlew lintDebug
 
       - name: Assemble debug APK
+        env:
+          # Optional, and all three default to empty. AI_PROXY_URL / AI_APP_SECRET point the
+          # build at a proxy that holds the key (see server/README.md); HF_TOKEN bakes a key
+          # into the APK instead, which works and is only sensible for a build that stays on
+          # your own phone.
+          AI_PROXY_URL: ${{ secrets.AI_PROXY_URL }}
+          AI_APP_SECRET: ${{ secrets.AI_APP_SECRET }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: ./gradlew assembleDebug
 
       - name: Upload debug APK
@@ -65,6 +73,9 @@ jobs:
           RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD || 'throwaway' }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS || 'paperjump' }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD || 'throwaway' }}
+          AI_PROXY_URL: ${{ secrets.AI_PROXY_URL }}
+          AI_APP_SECRET: ${{ secrets.AI_APP_SECRET }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: ./gradlew assembleRelease
 
       - name: Check the release APK is signed and not debuggable

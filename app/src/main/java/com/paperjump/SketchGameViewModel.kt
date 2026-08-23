@@ -217,6 +217,8 @@ class SketchGameViewModel(application: Application) : AndroidViewModel(applicati
                     hint = note,
                     token = settings.aiToken,
                     model = settings.aiModel,
+                    proxyUrl = settings.aiProxyUrl,
+                    appSecret = BuildConfig.AI_APP_SECRET,
                 )
 
                 val designed = (outcome as? AiOutcome.Success)?.plan

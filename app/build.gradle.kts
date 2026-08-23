@@ -17,6 +17,20 @@ val releaseNumber: Int = Properties().apply {
     rootProject.file("version.properties").inputStream().use { load(it) }
 }.getProperty("versionCode").trim().toInt()
 
+/**
+ * A build-time value from a Gradle property or the environment, or "" if it was not given.
+ *
+ * Escaped on the way through because these end up inside a Kotlin string literal in the
+ * generated `BuildConfig`, where a stray quote would be a compile error rather than a
+ * mystery at runtime.
+ */
+val buildSecret: (String, String) -> String = { property, environmentVariable ->
+    (findProperty(property) as String? ?: System.getenv(environmentVariable) ?: "")
+        .trim()
+        .replace("\\", "\\\\")
+        .replace("\"", "\\\"")
+}
+
 android {
     namespace = "com.paperjump"
     compileSdk = 35
@@ -28,6 +42,20 @@ android {
         versionCode = releaseNumber
         versionName = "1.$releaseNumber"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // How the AI level designer is wired up at build time, so a built APK can arrive
+        // already working with nothing to type. All three are empty by default and none of
+        // them is ever committed — see server/README.md.
+        //
+        // aiProxyUrl / aiAppSecret point the app at your own proxy, which holds the key.
+        // Neither is a secret: a URL is a URL, and the app secret is only a speed bump.
+        //
+        // hfToken bakes a Hugging Face key straight into the APK instead. It works, and
+        // anybody who gets the APK gets the key with it, so it belongs on a build that
+        // stays on your own phone rather than one you hand out.
+        buildConfigField("String", "AI_PROXY_URL", "\"${buildSecret("aiProxyUrl", "AI_PROXY_URL")}\"")
+        buildConfigField("String", "AI_APP_SECRET", "\"${buildSecret("aiAppSecret", "AI_APP_SECRET")}\"")
+        buildConfigField("String", "AI_TOKEN", "\"${buildSecret("hfToken", "HF_TOKEN")}\"")
     }
 
     // Signing for the release build. The key comes from the environment so no private key

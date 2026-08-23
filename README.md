@@ -58,6 +58,12 @@ it — an AI level is saved, re-tuned and replayed like any other, and needs nei
 signal the second time. If the call fails for any reason, the drawing is read the ordinary
 way instead.
 
+The key can be supplied three ways, and the app prefers them in this order: a **proxy** the
+build points at (which holds the key, so the APK carries none — see
+[`server/README.md`](server/README.md)), a key **typed into Settings**, or a key **baked in at
+build time** from an `HF_TOKEN` secret. Only the first is actually private: an APK is a zip,
+and a key inside one can be read straight back out of it.
+
 This is the only part of the app that uses the network.
 
 ### Tips for a good level

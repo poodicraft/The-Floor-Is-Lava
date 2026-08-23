@@ -1,6 +1,7 @@
 package com.paperjump.data
 
 import android.content.Context
+import com.paperjump.BuildConfig
 import com.paperjump.ai.AiProtocol
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,8 +42,19 @@ data class AppSettings(
     val aiToken: String = "",
     /** Which hosted vision model to ask. A setting so a model going away is not a rebuild. */
     val aiModel: String = AiProtocol.DEFAULT_MODEL,
+    /**
+     * A proxy that holds the key on the player's behalf, if the build was given one.
+     *
+     * When this is set the app sends no key at all: the proxy adds it. That is the only
+     * arrangement where the app works with nothing to type *and* the key cannot be read
+     * out of the APK — see server/README.md.
+     */
+    val aiProxyUrl: String = "",
 ) {
-    val hasAiKey: Boolean get() = aiToken.isNotBlank()
+    /** True when a request can be made at all: either a proxy answers, or we hold a key. */
+    val canUseAi: Boolean get() = aiProxyUrl.isNotBlank() || aiToken.isNotBlank()
+
+    val hasAiKey: Boolean get() = canUseAi
 
     companion object {
         const val MIN_CONTROL_SCALE = 0.75f
@@ -83,7 +95,12 @@ class SettingsRepository(context: Context) {
             showTimer = preferences.getBoolean(KEY_SHOW_TIMER, defaults.showTimer),
             lastSeenVersion = preferences.getString(KEY_LAST_SEEN_VERSION, null)
                 ?: defaults.lastSeenVersion,
-            aiToken = preferences.getString(KEY_AI_TOKEN, null) ?: defaults.aiToken,
+            // The build's own values are the starting point; anything typed in overrides
+            // them, and clearing a field falls back to the build's value again.
+            aiToken = preferences.getString(KEY_AI_TOKEN, null)?.takeIf { it.isNotBlank() }
+                ?: BuildConfig.AI_TOKEN,
+            aiProxyUrl = preferences.getString(KEY_AI_PROXY, null)?.takeIf { it.isNotBlank() }
+                ?: BuildConfig.AI_PROXY_URL,
             aiModel = preferences.getString(KEY_AI_MODEL, null)?.takeIf { it.isNotBlank() }
                 ?: defaults.aiModel,
         )
@@ -99,6 +116,7 @@ class SettingsRepository(context: Context) {
             .putString(KEY_LAST_SEEN_VERSION, settings.lastSeenVersion)
             .putString(KEY_AI_TOKEN, settings.aiToken)
             .putString(KEY_AI_MODEL, settings.aiModel)
+            .putString(KEY_AI_PROXY, settings.aiProxyUrl)
             .apply()
     }
 
@@ -112,5 +130,6 @@ class SettingsRepository(context: Context) {
         const val KEY_LAST_SEEN_VERSION = "last_seen_version"
         const val KEY_AI_TOKEN = "ai_token"
         const val KEY_AI_MODEL = "ai_model"
+        const val KEY_AI_PROXY = "ai_proxy_url"
     }
 }

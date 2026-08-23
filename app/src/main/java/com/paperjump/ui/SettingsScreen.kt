@@ -214,16 +214,34 @@ private fun AiKeySetting(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
-                text = "\"Draw anything\" sends your drawing to a vision model on Hugging " +
-                    "Face and builds the level it designs. It needs a free key from " +
-                    "huggingface.co/settings/tokens — a read token, or a fine-grained one " +
-                    "with \"Make calls to Inference Providers\" ticked.",
+                text = when {
+                    settings.aiProxyUrl.isNotBlank() ->
+                        "\"Draw anything\" is set up and ready: this build talks to your own " +
+                            "server, which holds the key. There is nothing to fill in here."
+                    settings.aiToken.isNotBlank() ->
+                        "\"Draw anything\" is ready. Your key is stored on this phone only."
+                    else ->
+                        "\"Draw anything\" sends your drawing to a vision model on Hugging " +
+                            "Face and builds the level it designs. It needs a free key from " +
+                            "huggingface.co/settings/tokens — a read token, or a fine-grained " +
+                            "one with \"Make calls to Inference Providers\" ticked."
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
             OutlinedTextField(
+                value = settings.aiProxyUrl,
+                onValueChange = { value -> onSettingsChange { it.copy(aiProxyUrl = value.trim()) } },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Server that holds the key (optional)") },
+                placeholder = { Text("https://…workers.dev") },
+            )
+
+            OutlinedTextField(
                 value = settings.aiToken,
+                enabled = settings.aiProxyUrl.isBlank(),
                 onValueChange = { value -> onSettingsChange { it.copy(aiToken = value.trim()) } },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
