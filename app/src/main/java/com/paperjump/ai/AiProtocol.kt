@@ -12,19 +12,14 @@ object AiProtocol {
 
     const val ENDPOINT = "https://router.huggingface.co/v1/chat/completions"
 
-    /** A vision model small enough to be served on the free tier. Overridable in Settings. */
-    const val DEFAULT_MODEL = "Qwen/Qwen2.5-VL-7B-Instruct"
-
     /**
-     * Models to try, in order, when the chosen one is not being served.
+     * A vision model small enough to be served on the free tier. Overridable in Settings.
      *
-     * Hugging Face does not run these itself — it routes to partner providers, and which
-     * provider carries which model changes without notice and differs per account. Pinning
-     * one model is therefore a promise the app cannot keep: the first real call failed with
-     * "not supported by any provider you have enabled" on a model that was serving fine
-     * when it was chosen. Walking a list costs one wasted round trip in the bad case and
-     * makes the feature survive the landscape moving underneath it.
+     * Explicitly a *VL* model and one of the smaller ones, which is what makes it the
+     * likeliest of the current crop to be carried by a provider on a free account.
      */
+    const val DEFAULT_MODEL = "Qwen/Qwen3-VL-8B-Instruct"
+
     /**
      * Hugging Face's own list of vision models that a provider is actually serving.
      *
@@ -44,13 +39,22 @@ object AiProtocol {
             .filter { it.isNotBlank() && "/" in it }
             .distinct()
 
-    /** The fallback list, used when the live one cannot be fetched. */
+    /**
+     * The fallback list, used when the live one cannot be fetched.
+     *
+     * Real ids, read off the live listing rather than remembered: every name written here
+     * from memory so far has been wrong or stale by the time it reached a phone. Which
+     * provider carries which model still changes weekly, so this is a last resort behind
+     * [MODELS_ENDPOINT] rather than something to rely on.
+     */
     val MODEL_CANDIDATES: List<String> = listOf(
         DEFAULT_MODEL,
-        "Qwen/Qwen2.5-VL-72B-Instruct",
-        "meta-llama/Llama-3.2-11B-Vision-Instruct",
-        "google/gemma-3-27b-it",
-        "mistralai/Mistral-Small-3.1-24B-Instruct-2503",
+        "Qwen/Qwen3.5-9B",
+        "Qwen/Qwen3.8-27B",
+        "google/gemma-4-26B-A4B-it",
+        "google/gemma-4-31B-it",
+        "Qwen/Qwen3.6-27B",
+        "moonshotai/Kimi-K3",
     )
 
     /**

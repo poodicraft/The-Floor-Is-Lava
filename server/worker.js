@@ -20,12 +20,13 @@ const MAX_TOKENS = 1500;
 
 /** Hard-coded here rather than taken from the app, so nobody can point it somewhere odd. */
 const ALLOWED_MODELS = [
-  "Qwen/Qwen2.5-VL-7B-Instruct",
-  "Qwen/Qwen2.5-VL-32B-Instruct",
-  "Qwen/Qwen2.5-VL-72B-Instruct",
-  "meta-llama/Llama-3.2-11B-Vision-Instruct",
-  "google/gemma-3-27b-it",
-  "mistralai/Mistral-Small-3.1-24B-Instruct-2503",
+  "Qwen/Qwen3-VL-8B-Instruct",
+  "Qwen/Qwen3.5-9B",
+  "Qwen/Qwen3.8-27B",
+  "google/gemma-4-26B-A4B-it",
+  "google/gemma-4-31B-it",
+  "Qwen/Qwen3.6-27B",
+  "moonshotai/Kimi-K3",
 ];
 
 const UPSTREAM = "https://router.huggingface.co/v1/chat/completions";
