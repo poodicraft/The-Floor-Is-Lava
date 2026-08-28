@@ -9,11 +9,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.core.os.LocaleListCompat
+import androidx.lifecycle.lifecycleScope
+import com.poodicraft.bookquest.data.CloudSync
 import com.poodicraft.bookquest.data.LibraryRepository
 import com.poodicraft.bookquest.data.Prefs
 import com.poodicraft.bookquest.data.Subject
 import com.poodicraft.bookquest.ui.BookQuestRoot
 import com.poodicraft.bookquest.ui.theme.BookQuestTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
@@ -56,6 +59,15 @@ class MainActivity : AppCompatActivity() {
                     }
                 )
             }
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Quietly push progress to the account, if one is signed in.
+        val cloud = CloudSync.get(this)
+        if (cloud.isConfigured) {
+            lifecycleScope.launch { cloud.pushQuietly() }
         }
     }
 }

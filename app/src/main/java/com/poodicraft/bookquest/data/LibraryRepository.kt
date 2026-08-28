@@ -109,6 +109,8 @@ class LibraryRepository private constructor(private val appContext: Context) {
         put("minutesRead", book.minutesRead)
         put("favorite", book.favorite)
         put("finished", book.finished)
+        put("finishRewarded", book.finishRewarded)
+        put("cardsRewarded", book.cardsRewarded)
         put("cards", JSONArray().also { arr ->
             book.cards.forEach { card ->
                 arr.put(JSONObject().apply {
@@ -148,6 +150,8 @@ class LibraryRepository private constructor(private val appContext: Context) {
             minutesRead = json.optInt("minutesRead", 0),
             favorite = json.optBoolean("favorite", false),
             finished = json.optBoolean("finished", false),
+            finishRewarded = json.optBoolean("finishRewarded", json.optBoolean("finished", false)),
+            cardsRewarded = json.optInt("cardsRewarded", cards.size),
             cards = cards
         )
     }
@@ -233,8 +237,9 @@ class LibraryRepository private constructor(private val appContext: Context) {
                 addedAt = System.currentTimeMillis(),
                 coverSeed = title.hashCode()
             )
-            _books.value = listOf(book) + _books.value
-            book
+            val restored = restoreFromSnapshot(book)
+            _books.value = listOf(restored) + _books.value
+            restored
         } catch (e: Exception) {
             null
         }
@@ -351,19 +356,28 @@ class LibraryRepository private constructor(private val appContext: Context) {
     }
 
     fun setFinished(id: String, finished: Boolean) {
-        val wasFinished = bookById(id)?.finished ?: false
-        mutate(id) { it.copy(finished = finished, progress = if (finished) 1f else it.progress) }
-        val profile = _profile.value
+        // The completion bonus is paid once per book, ever. Ticking the button off
+        // and on again re-marks the book but does not hand out XP a second time.
+        val alreadyRewarded = bookById(id)?.finishRewarded ?: false
+        val payBonus = finished && !alreadyRewarded
+        mutate(id) {
+            it.copy(
+                finished = finished,
+                progress = if (finished) 1f else it.progress,
+                finishRewarded = it.finishRewarded || finished
+            )
+        }
         val count = _books.value.count { it.finished }
-        _profile.value = profile.copy(booksFinished = count)
-        if (finished && !wasFinished) awardXp(50)
+        _profile.value = _profile.value.copy(booksFinished = count)
+        if (payBonus) awardXp(FINISH_BONUS_XP)
         refreshBadges()
         persist()
     }
 
     fun recordReading(bookId: String, seconds: Int) {
-        if (seconds < 30) return
-        val minutes = (seconds / 60).coerceAtLeast(1)
+        // Anything under a full minute is not a reading session worth paying for.
+        val minutes = seconds / 60
+        if (minutes < 1) return
         mutate(bookId) { it.copy(minutesRead = it.minutesRead + minutes) }
         rollDay()
         val today = dayKey(Date())
@@ -387,9 +401,18 @@ class LibraryRepository private constructor(private val appContext: Context) {
 
     fun addCard(bookId: String, front: String, back: String) {
         if (front.isBlank()) return
+        // Only the first few cards on a book pay out, and the counter never drops,
+        // so deleting and re-adding a card cannot be used to farm XP.
+        val rewarded = bookById(bookId)?.cardsRewarded ?: 0
+        val payCard = rewarded < REWARDED_CARDS_PER_BOOK
         val card = Flashcard(UUID.randomUUID().toString(), front.trim(), back.trim())
-        mutate(bookId) { it.copy(cards = it.cards + card) }
-        awardXp(5)
+        mutate(bookId) {
+            it.copy(
+                cards = it.cards + card,
+                cardsRewarded = if (payCard) it.cardsRewarded + 1 else it.cardsRewarded
+            )
+        }
+        if (payCard) awardXp(CARD_XP)
         refreshBadges()
     }
 
@@ -475,7 +498,154 @@ class LibraryRepository private constructor(private val appContext: Context) {
     private fun dayKey(date: Date): String =
         SimpleDateFormat("yyyy-MM-dd", Locale.US).format(date)
 
+    // ------------------------------------------------------------ cloud sync
+
+    private val snapshotFile: File get() = File(appContext.filesDir, "cloud_snapshot.json")
+
+    private fun bookKey(title: String, format: BookFormat): String =
+        title.trim().lowercase() + "|" + format.id
+
+    /** Everything worth backing up to a Google account, as one JSON document. */
+    fun exportSnapshot(): String {
+        val root = JSONObject()
+        root.put("version", 1)
+        root.put("updatedAt", System.currentTimeMillis())
+        root.put("profile", profileToJson(_profile.value))
+        val array = JSONArray()
+        for (book in _books.value) {
+            val entry = JSONObject()
+            entry.put("key", bookKey(book.title, book.format))
+            entry.put("title", book.title)
+            entry.put("author", book.author)
+            entry.put("subject", book.subjectId)
+            entry.put("format", book.format.id)
+            entry.put("progress", book.progress.toDouble())
+            entry.put("lastPage", book.lastPage)
+            entry.put("minutesRead", book.minutesRead)
+            entry.put("favorite", book.favorite)
+            entry.put("finished", book.finished)
+            entry.put("finishRewarded", book.finishRewarded)
+            entry.put("cardsRewarded", book.cardsRewarded)
+            val cards = JSONArray()
+            for (card in book.cards) {
+                val cardJson = JSONObject()
+                cardJson.put("front", card.front)
+                cardJson.put("back", card.back)
+                cards.put(cardJson)
+            }
+            entry.put("cards", cards)
+            array.put(entry)
+        }
+        root.put("books", array)
+        return root.toString()
+    }
+
+    /**
+     * Folds a snapshot from the cloud into local state. Every field takes the more
+     * advanced of the two sides, so a merge can never roll reading progress back.
+     */
+    fun mergeSnapshot(json: String) {
+        val root = try {
+            JSONObject(json)
+        } catch (e: Exception) {
+            return
+        }
+
+        val remote = HashMap<String, JSONObject>()
+        val array = root.optJSONArray("books")
+        if (array != null) {
+            for (i in 0 until array.length()) {
+                val entry = array.optJSONObject(i) ?: continue
+                val key = entry.optString("key")
+                if (key.isNotEmpty()) remote[key] = entry
+            }
+        }
+
+        _books.value = _books.value.map { book ->
+            val entry = remote[bookKey(book.title, book.format)]
+            if (entry == null) book else applyEntry(book, entry)
+        }
+
+        val remoteProfile = root.optJSONObject("profile")
+        if (remoteProfile != null) {
+            val local = _profile.value
+            val incoming = profileFromJson(remoteProfile)
+            _profile.value = local.copy(
+                xp = maxOf(local.xp, incoming.xp),
+                streak = maxOf(local.streak, incoming.streak),
+                bestStreak = maxOf(local.bestStreak, incoming.bestStreak),
+                totalMinutes = maxOf(local.totalMinutes, incoming.totalMinutes),
+                perfectQuizzes = maxOf(local.perfectQuizzes, incoming.perfectQuizzes),
+                booksFinished = _books.value.count { it.finished },
+                lastReadDay = maxOf(local.lastReadDay, incoming.lastReadDay),
+                languagesTried = local.languagesTried + incoming.languagesTried,
+                badges = local.badges + incoming.badges
+            )
+        }
+
+        try {
+            snapshotFile.writeText(json)
+        } catch (e: Exception) {
+            // The merge already happened; only the offline copy is lost.
+        }
+        refreshBadges()
+        persist()
+    }
+
+    private fun applyEntry(book: Book, entry: JSONObject): Book {
+        val cards = book.cards.toMutableList()
+        val seen = book.cards.mapTo(HashSet()) { it.front.trim().lowercase() }
+        val remoteCards = entry.optJSONArray("cards")
+        if (remoteCards != null) {
+            for (i in 0 until remoteCards.length()) {
+                val card = remoteCards.optJSONObject(i) ?: continue
+                val front = card.optString("front")
+                if (front.isBlank()) continue
+                if (seen.add(front.trim().lowercase())) {
+                    cards.add(
+                        Flashcard(UUID.randomUUID().toString(), front, card.optString("back"))
+                    )
+                }
+            }
+        }
+        return book.copy(
+            progress = maxOf(book.progress, entry.optDouble("progress", 0.0).toFloat()),
+            lastPage = maxOf(book.lastPage, entry.optInt("lastPage", 0)),
+            minutesRead = maxOf(book.minutesRead, entry.optInt("minutesRead", 0)),
+            favorite = book.favorite || entry.optBoolean("favorite", false),
+            finished = book.finished || entry.optBoolean("finished", false),
+            finishRewarded = book.finishRewarded || entry.optBoolean("finishRewarded", false),
+            cardsRewarded = maxOf(book.cardsRewarded, entry.optInt("cardsRewarded", 0)),
+            cards = cards
+        )
+    }
+
+    /**
+     * Re-attaches progress from the last cloud snapshot to a freshly imported book.
+     * That is what makes "reinstall, sign in, add your files again" bring the
+     * reading history back with them.
+     */
+    private fun restoreFromSnapshot(book: Book): Book {
+        val root = try {
+            if (!snapshotFile.exists()) return book
+            JSONObject(snapshotFile.readText())
+        } catch (e: Exception) {
+            return book
+        }
+        val array = root.optJSONArray("books") ?: return book
+        val key = bookKey(book.title, book.format)
+        for (i in 0 until array.length()) {
+            val entry = array.optJSONObject(i) ?: continue
+            if (entry.optString("key") == key) return applyEntry(book, entry)
+        }
+        return book
+    }
+
     companion object {
+        const val FINISH_BONUS_XP = 50
+        const val CARD_XP = 5
+        const val REWARDED_CARDS_PER_BOOK = 10
+
         @Volatile
         private var instance: LibraryRepository? = null
 

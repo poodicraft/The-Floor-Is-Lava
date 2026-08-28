@@ -55,6 +55,11 @@ jobs:
           mkdir -p out
           cp app/build/outputs/apk/debug/app-debug.apk out/BookQuest.apk
           ls -lh out
+          VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Built BookQuest $VERSION"
+          keytool -list -v -keystore keystore/debug.keystore -storepass android \
+            -alias androiddebugkey | grep "SHA1:" || true
 
       - name: Upload the APK as a build artifact
         uses: actions/upload-artifact@v4
@@ -72,5 +77,5 @@ jobs:
           gh release delete apk-latest --yes --cleanup-tag || true
           gh release create apk-latest out/BookQuest.apk \
             --title "BookQuest APK (latest build)" \
-            --notes "Debug APK built from ${{ github.sha }} on branch ${{ github.ref_name }}. Download BookQuest.apk and install it on an Android phone (Android 7.0 or newer)." \
+            --notes "BookQuest ${{ env.APP_VERSION }} — debug APK built from ${{ github.sha }} on branch ${{ github.ref_name }}. Download BookQuest.apk and install it on an Android phone (Android 7.0 or newer)." \
             --prerelease

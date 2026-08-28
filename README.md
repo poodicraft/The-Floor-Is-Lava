@@ -23,6 +23,21 @@ layout between right-to-left and left-to-right with the language.
   play a flip-card quiz and earn XP for what you remember.
 - **Generated covers** — no artwork needed: every book gets its own gradient
   cover from its subject and title.
+- **Google sign in and cloud backup** — optional. Sign in with a Google
+  account and the profile, per-book progress and flashcards are merged into
+  Cloud Firestore, so a reinstall or a new phone picks up where you left off.
+  Needs a Firebase project of your own: see [CLOUD_SETUP.md](CLOUD_SETUP.md).
+
+## Versioning
+
+`versionName` / `versionCode` in `app/build.gradle.kts` are bumped on every
+build that goes out, and Settings → About shows the running version, so you can
+always tell which build is on the phone.
+
+| Version | What changed |
+| --- | --- |
+| 1.1 (2) | Google sign in and cloud backup, reworked reading screen, XP exploit fixes |
+| 1.0 (1) | First release: library, importing, three readers, three languages, gamification |
 
 ## Getting the APK
 
@@ -43,7 +58,9 @@ self-signed debug build rather than a Play Store release.
 # app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Requires JDK 17 and the Android SDK (compileSdk 34).
+Requires JDK 17 and the Android SDK (compileSdk 34). Debug builds are signed
+with the committed `keystore/debug.keystore` so the signing fingerprint stays
+stable for Google sign in.
 
 ## Project layout
 

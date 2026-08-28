@@ -4,8 +4,16 @@ import android.graphics.Bitmap
 import android.os.SystemClock
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,7 +25,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -29,36 +40,40 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -71,17 +86,32 @@ import com.poodicraft.bookquest.data.Prefs
 import com.poodicraft.bookquest.reader.EpubParser
 import com.poodicraft.bookquest.reader.PdfBook
 import com.poodicraft.bookquest.reader.TextLoader
+import com.poodicraft.bookquest.ui.components.ConfettiBurst
 import com.poodicraft.bookquest.ui.components.EmptyState
+import com.poodicraft.bookquest.ui.theme.Brand
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private class PageStyle(val background: Color, val text: Color, val soft: Color)
+private data class PageStyle(
+    val background: Color,
+    val text: Color,
+    val soft: Color,
+    val accent: Color
+)
 
 private fun styleFor(name: String): PageStyle = when (name) {
-    "sepia" -> PageStyle(Color(0xFFF6E7C6), Color(0xFF4A3A22), Color(0xFF8A7550))
-    "dark" -> PageStyle(Color(0xFF14121F), Color(0xFFE9E4F8), Color(0xFF9C93BE))
-    else -> PageStyle(Color(0xFFFDFBF7), Color(0xFF1E1A2E), Color(0xFF6C6488))
+    "sepia" -> PageStyle(Color(0xFFF6E7C6), Color(0xFF4A3A22), Color(0xFF8A7550), Color(0xFFC77B2B))
+    "dark" -> PageStyle(Color(0xFF14121F), Color(0xFFE9E4F8), Color(0xFF9C93BE), Color(0xFF9C7BFF))
+    else -> PageStyle(Color(0xFFFDFBF7), Color(0xFF1E1A2E), Color(0xFF6C6488), Color(0xFF6C4CF1))
 }
+
+/** Reading time is paid at three XP a minute; the chip shows it ticking up live. */
+private const val XP_PER_MINUTE = 3
+
+private val TOP_INSET = 96.dp
+private val BOTTOM_INSET = 96.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -103,12 +133,13 @@ fun ReaderScreen(
         return
     }
 
-    val context = LocalContext.current
     var fontSize by remember { mutableFloatStateOf(prefs.readerFontSize) }
     var themeName by remember { mutableStateOf(prefs.readerTheme) }
     var showSettings by remember { mutableStateOf(false) }
+    var chromeVisible by remember { mutableStateOf(true) }
     val sheetState = rememberModalBottomSheetState()
-    val style = styleFor(themeName)
+    val style = remember(themeName) { styleFor(themeName) }
+    val scope = rememberCoroutineScope()
 
     // Progress and reading time are written back when the reader closes.
     val progressState = remember { mutableFloatStateOf(book.progress) }
@@ -124,89 +155,97 @@ fun ReaderScreen(
         }
     }
 
-    val file = remember(bookId) { repository.bookFile(book) }
-
-    androidx.compose.material3.Scaffold(
-        containerColor = style.background,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            text = book.title,
-                            maxLines = 1,
-                            color = style.text,
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Text(
-                            text = stringResource(
-                                R.string.progress_pct,
-                                (progressState.floatValue * 100).toInt()
-                            ),
-                            color = style.soft,
-                            style = MaterialTheme.typography.labelMedium
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = stringResource(R.string.back),
-                            tint = style.text
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { showSettings = true }) {
-                        Icon(
-                            Icons.Rounded.Settings,
-                            contentDescription = stringResource(R.string.reader_settings),
-                            tint = style.text
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = style.background)
-            )
+    // A live session counter makes the earned XP visible while you read. It is
+    // polled rather than ticked so the screen only recomposes when it changes.
+    var sessionMinutes by remember { mutableIntStateOf(0) }
+    LaunchedEffect(bookId) {
+        while (true) {
+            delay(15_000L)
+            sessionMinutes = ((SystemClock.elapsedRealtime() - startedAt) / 60_000L).toInt()
         }
-    ) { padding ->
-        Column(
+    }
+
+    // Celebrate every quarter of the book, but not for ground already covered.
+    var milestone by remember { mutableIntStateOf((book.progress * 4).toInt().coerceIn(0, 4)) }
+    var milestoneText by remember { mutableStateOf<Int?>(null) }
+    var confetti by remember { mutableIntStateOf(0) }
+    val reached = (progressState.floatValue * 4).toInt().coerceIn(0, 4)
+    LaunchedEffect(reached) {
+        if (reached > milestone && reached > 0) {
+            milestone = reached
+            milestoneText = when (reached) {
+                1 -> R.string.milestone_quarter
+                2 -> R.string.milestone_half
+                3 -> R.string.milestone_three_quarters
+                else -> R.string.milestone_end
+            }
+            confetti += 1
+            delay(2800L)
+            milestoneText = null
+        }
+    }
+
+    val file = remember(bookId) { repository.bookFile(book) }
+    val listState = rememberLazyListState()
+    val webView = remember { mutableStateOf<WebView?>(null) }
+    val itemCount = remember { mutableIntStateOf(0) }
+    val isWebFormat = book.format == BookFormat.EPUB || book.format == BookFormat.HTML
+
+    val seek: (Float) -> Unit = { fraction ->
+        scope.launch {
+            if (isWebFormat) {
+                webView.value?.let { view ->
+                    val height = view.contentHeight * view.scale
+                    view.scrollTo(0, (height * fraction).toInt())
+                }
+            } else if (itemCount.intValue > 1) {
+                listState.scrollToItem(((itemCount.intValue - 1) * fraction).toInt())
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(style.background)
+    ) {
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .background(style.background)
+                .pointerInput(bookId) {
+                    detectTapGestures(onTap = { chromeVisible = !chromeVisible })
+                }
         ) {
-            LinearProgressIndicator(
-                progress = { progressState.floatValue.coerceIn(0f, 1f) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(3.dp),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = style.background
-            )
             when (book.format) {
                 BookFormat.PDF -> PdfReader(
                     file = file,
                     style = style,
                     startPage = book.lastPage,
+                    listState = listState,
+                    itemCount = itemCount,
                     onProgress = { fraction, page ->
                         progressState.floatValue = fraction
                         pageState.value = page
                     }
                 )
+
                 BookFormat.EPUB, BookFormat.HTML -> WebReader(
                     isEpub = book.format == BookFormat.EPUB,
                     file = file,
                     style = style,
                     fontSize = fontSize,
                     startProgress = book.progress,
+                    webViewRef = webView,
                     onProgress = { fraction -> progressState.floatValue = fraction }
                 )
+
                 else -> PlainTextReader(
                     file = file,
                     style = style,
                     fontSize = fontSize,
                     startIndex = book.lastPage,
+                    listState = listState,
+                    itemCount = itemCount,
                     onProgress = { fraction, index ->
                         progressState.floatValue = fraction
                         pageState.value = index
@@ -214,6 +253,67 @@ fun ReaderScreen(
                 )
             }
         }
+
+        AnimatedVisibility(
+            visible = chromeVisible,
+            enter = fadeIn() + slideInVertically { -it },
+            exit = fadeOut() + slideOutVertically { -it },
+            modifier = Modifier.align(Alignment.TopCenter)
+        ) {
+            ReaderTopBar(
+                book = book,
+                style = style,
+                progress = progressState.floatValue,
+                sessionMinutes = sessionMinutes,
+                onBack = onBack,
+                onSettings = { showSettings = true }
+            )
+        }
+
+        AnimatedVisibility(
+            visible = chromeVisible,
+            enter = fadeIn() + slideInVertically { it },
+            exit = fadeOut() + slideOutVertically { it },
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
+            ReaderBottomBar(
+                style = style,
+                progress = progressState.floatValue,
+                showFinish = progressState.floatValue >= 0.97f && !book.finished,
+                onSeek = seek,
+                onFinish = {
+                    repository.setFinished(bookId, true)
+                    confetti += 1
+                }
+            )
+        }
+
+        val banner = milestoneText
+        AnimatedVisibility(
+            visible = banner != null,
+            enter = fadeIn() + slideInVertically { -it },
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 110.dp)
+        ) {
+            if (banner != null) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Brush.linearGradient(listOf(Brand.Violet, Brand.Coral)))
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        text = "🎉  " + stringResource(banner),
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+            }
+        }
+
+        ConfettiBurst(trigger = confetti)
     }
 
     if (showSettings) {
@@ -239,10 +339,8 @@ fun ReaderScreen(
                 )
                 Slider(
                     value = fontSize,
-                    onValueChange = {
-                        fontSize = it
-                        prefs.readerFontSize = it
-                    },
+                    onValueChange = { fontSize = it },
+                    onValueChangeFinished = { prefs.readerFontSize = fontSize },
                     valueRange = 13f..34f,
                     steps = 20
                 )
@@ -252,25 +350,217 @@ fun ReaderScreen(
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     listOf(
                         "light" to R.string.reader_theme_light,
                         "sepia" to R.string.reader_theme_sepia,
                         "dark" to R.string.reader_theme_dark
                     ).forEach { (key, labelRes) ->
+                        val preview = styleFor(key)
                         FilterChip(
                             selected = themeName == key,
                             onClick = {
                                 themeName = key
                                 prefs.readerTheme = key
                             },
-                            label = { Text(stringResource(labelRes)) },
+                            label = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(14.dp)
+                                            .clip(RoundedCornerShape(7.dp))
+                                            .background(preview.background)
+                                    )
+                                    Spacer(Modifier.width(7.dp))
+                                    Text(stringResource(labelRes))
+                                }
+                            },
                             shape = RoundedCornerShape(14.dp)
                         )
                     }
                 }
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    text = "👆 " + stringResource(R.string.tap_to_hide),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
+        }
+    }
+}
+
+// ------------------------------------------------------------------- chrome
+
+@Composable
+private fun ReaderTopBar(
+    book: Book,
+    style: PageStyle,
+    progress: Float,
+    sessionMinutes: Int,
+    onBack: () -> Unit,
+    onSettings: () -> Unit
+) {
+    val animated by animateFloatAsState(
+        targetValue = progress.coerceIn(0f, 1f),
+        animationSpec = tween(600),
+        label = "progress"
+    )
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                Brush.verticalGradient(
+                    listOf(style.background, style.background.copy(alpha = 0.94f))
+                )
+            )
+            .statusBarsPadding()
+            .padding(horizontal = 6.dp, vertical = 4.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    Icons.AutoMirrored.Rounded.ArrowBack,
+                    contentDescription = stringResource(R.string.back),
+                    tint = style.text
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = book.subject.emoji + "  " + book.title,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = style.text,
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    text = stringResource(R.string.progress_pct, (progress * 100).toInt()),
+                    color = style.soft,
+                    style = MaterialTheme.typography.labelMedium
+                )
+            }
+            SessionChip(style = style, minutes = sessionMinutes)
+            IconButton(onClick = onSettings) {
+                Icon(
+                    Icons.Rounded.Settings,
+                    contentDescription = stringResource(R.string.reader_settings),
+                    tint = style.text
+                )
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp)
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(style.soft.copy(alpha = 0.22f))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(animated)
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(
+                        Brush.horizontalGradient(listOf(Brand.Violet, Brand.Coral, Brand.Sun))
+                    )
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+    }
+}
+
+@Composable
+private fun SessionChip(style: PageStyle, minutes: Int) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(style.accent.copy(alpha = 0.14f))
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = "⏱", fontSize = 13.sp)
+        Spacer(Modifier.width(5.dp))
+        Text(
+            text = minutes.toString(),
+            color = style.text,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(text = "⚡", fontSize = 13.sp)
+        Spacer(Modifier.width(3.dp))
+        Text(
+            text = (minutes * XP_PER_MINUTE).toString(),
+            color = style.accent,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun ReaderBottomBar(
+    style: PageStyle,
+    progress: Float,
+    showFinish: Boolean,
+    onSeek: (Float) -> Unit,
+    onFinish: () -> Unit
+) {
+    var dragging by remember { mutableStateOf(false) }
+    var dragValue by remember { mutableFloatStateOf(progress) }
+    val shown = if (dragging) dragValue else progress.coerceIn(0f, 1f)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                Brush.verticalGradient(
+                    listOf(style.background.copy(alpha = 0.94f), style.background)
+                )
+            )
+            .padding(horizontal = 18.dp, vertical = 6.dp)
+    ) {
+        if (showFinish) {
+            Button(
+                onClick = onFinish,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text("🏁  " + stringResource(R.string.finish_book_now))
+            }
+            Spacer(Modifier.height(6.dp))
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = stringResource(R.string.jump_to),
+                color = style.soft,
+                style = MaterialTheme.typography.labelMedium
+            )
+            Slider(
+                value = shown,
+                onValueChange = {
+                    dragging = true
+                    dragValue = it
+                },
+                onValueChangeFinished = {
+                    dragging = false
+                    onSeek(dragValue)
+                },
+                valueRange = 0f..1f,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 10.dp)
+            )
+            Text(
+                text = (shown * 100).toInt().toString() + "%",
+                color = style.text,
+                style = MaterialTheme.typography.labelLarge
+            )
         }
     }
 }
@@ -283,6 +573,8 @@ private fun PlainTextReader(
     style: PageStyle,
     fontSize: Float,
     startIndex: Int,
+    listState: LazyListState,
+    itemCount: MutableState<Int>,
     onProgress: (Float, Int) -> Unit
 ) {
     val lines by produceState<List<String>?>(initialValue = null, file.path) {
@@ -302,8 +594,8 @@ private fun PlainTextReader(
         return
     }
 
-    val listState = rememberLazyListState()
     LaunchedEffect(file.path, content.size) {
+        itemCount.value = content.size
         val target = startIndex.coerceIn(0, (content.size - 1).coerceAtLeast(0))
         if (target > 0) listState.scrollToItem(target)
     }
@@ -319,24 +611,52 @@ private fun PlainTextReader(
         modifier = Modifier
             .fillMaxSize()
             .background(style.background),
-        contentPadding = PaddingValues(horizontal = 22.dp, vertical = 18.dp)
+        contentPadding = PaddingValues(
+            start = 24.dp,
+            end = 24.dp,
+            top = TOP_INSET,
+            bottom = BOTTOM_INSET
+        )
     ) {
         items(content.size) { index ->
             val line = content[index]
             if (line.isBlank()) {
                 Spacer(Modifier.height((fontSize * 0.7f).dp))
+            } else if (index == 0) {
+                Text(
+                    text = line,
+                    color = style.accent,
+                    fontSize = (fontSize * 1.45f).sp,
+                    lineHeight = (fontSize * 1.9f).sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.padding(bottom = 10.dp)
+                )
             } else {
                 Text(
                     text = line,
                     color = style.text,
                     fontSize = fontSize.sp,
-                    lineHeight = (fontSize * 1.65f).sp,
-                    fontWeight = if (index == 0) FontWeight.Bold else FontWeight.Normal,
-                    modifier = Modifier.padding(bottom = 2.dp)
+                    lineHeight = (fontSize * 1.7f).sp,
+                    modifier = Modifier.padding(bottom = 3.dp)
                 )
             }
         }
-        item { Spacer(Modifier.height(60.dp)) }
+        item {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Spacer(Modifier.height(20.dp))
+                Text(text = "🌟", fontSize = 30.sp)
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = stringResource(R.string.milestone_end),
+                    color = style.soft,
+                    style = MaterialTheme.typography.titleMedium,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
     }
 }
 
@@ -349,6 +669,7 @@ private fun WebReader(
     style: PageStyle,
     fontSize: Float,
     startProgress: Float,
+    webViewRef: MutableState<WebView?>,
     onProgress: (Float) -> Unit
 ) {
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
@@ -376,6 +697,10 @@ private fun WebReader(
     val document = remember(documentKey) { buildHtml(loaded, fontSize, style, rtl) }
     val lastLoaded = remember { mutableStateOf("") }
     val restored = remember { mutableStateOf(false) }
+
+    DisposableEffect(Unit) {
+        onDispose { webViewRef.value = null }
+    }
 
     AndroidView(
         modifier = Modifier
@@ -412,10 +737,12 @@ private fun WebReader(
                         // Progress stays where it was.
                     }
                 }
+                webViewRef.value = this
             }
         },
         update = { web ->
             web.setBackgroundColor(style.background.toArgb())
+            webViewRef.value = web
             if (lastLoaded.value != documentKey) {
                 lastLoaded.value = documentKey
                 web.loadDataWithBaseURL(null, document, "text/html", "utf-8", null)
@@ -436,17 +763,27 @@ private fun buildHtml(body: String, fontSize: Float, style: PageStyle, rtl: Bool
             background: ${hex(style.background)};
             color: ${hex(style.text)};
             font-size: ${fontSize.toInt()}px;
-            line-height: 1.7;
-            padding: 18px 20px 60px 20px;
+            line-height: 1.75;
+            padding: 104px 22px 104px 22px;
             margin: 0;
             font-family: sans-serif;
             word-wrap: break-word;
           }
-          h1, h2, h3 { line-height: 1.3; }
-          a { color: ${hex(style.text)}; }
+          h1, h2, h3 { line-height: 1.3; color: ${hex(style.accent)}; }
+          a { color: ${hex(style.accent)}; }
           img, svg, video { display: none; }
-          hr.chapter-break { border: none; border-top: 2px dashed ${hex(style.soft)}; margin: 34px 0; }
+          hr.chapter-break {
+            border: none;
+            border-top: 2px dashed ${hex(style.soft)};
+            margin: 36px 0;
+          }
           p { margin: 0 0 1em 0; }
+          blockquote {
+            margin: 1em 0;
+            padding: 0 1em;
+            border-inline-start: 4px solid ${hex(style.accent)};
+            opacity: 0.9;
+          }
         </style>
         </head>
         <body>$body</body>
@@ -461,6 +798,8 @@ private fun PdfReader(
     file: java.io.File,
     style: PageStyle,
     startPage: Int,
+    listState: LazyListState,
+    itemCount: MutableState<Int>,
     onProgress: (Float, Int) -> Unit
 ) {
     val document by produceState<PdfBook?>(initialValue = null, file.path) {
@@ -488,8 +827,8 @@ private fun PdfReader(
         with(density) { (configuration.screenWidthDp.dp.toPx()).toInt() }
     }
 
-    val listState = rememberLazyListState()
     LaunchedEffect(pageCount) {
+        itemCount.value = pageCount
         val target = startPage.coerceIn(0, pageCount - 1)
         if (target > 0) listState.scrollToItem(target)
     }
@@ -505,8 +844,8 @@ private fun PdfReader(
         modifier = Modifier
             .fillMaxSize()
             .background(style.background),
-        contentPadding = PaddingValues(vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        contentPadding = PaddingValues(top = TOP_INSET, bottom = BOTTOM_INSET),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         items(pageCount) { index ->
             PdfPageView(
@@ -544,13 +883,15 @@ private fun PdfPageView(
                     .height(420.dp),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                CircularProgressIndicator(color = style.accent)
             }
         } else {
             Image(
                 bitmap = image.asImageBitmap(),
                 contentDescription = null,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp)),
                 contentScale = ContentScale.FillWidth
             )
         }
@@ -574,7 +915,9 @@ private fun LoadingBox(style: PageStyle) {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+            Text(text = "📖", fontSize = 44.sp)
+            Spacer(Modifier.height(14.dp))
+            CircularProgressIndicator(color = style.accent)
             Spacer(Modifier.height(14.dp))
             Text(text = stringResource(R.string.loading), color = style.soft)
         }

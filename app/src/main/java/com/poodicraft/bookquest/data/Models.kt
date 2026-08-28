@@ -68,6 +68,10 @@ data class Book(
     val minutesRead: Int = 0,
     val favorite: Boolean = false,
     val finished: Boolean = false,
+    /** Set once the completion bonus has been paid, so re-ticking cannot farm XP. */
+    val finishRewarded: Boolean = false,
+    /** How many cards on this book have already earned XP. Never goes down. */
+    val cardsRewarded: Int = 0,
     val cards: List<Flashcard> = emptyList()
 ) {
     val subject: Subject get() = Subject.fromId(subjectId)

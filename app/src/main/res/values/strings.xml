@@ -165,4 +165,26 @@
     <string name="tip_3">מסיימים פרק ואז מספרים אותו בקול במילים שלכם.</string>
     <string name="tip_4">מחליפים שפה כדי לתרגל קריאה בעברית, אנגלית או ערבית.</string>
     <string name="tip_5">בוחרים יעד יומי שאפשר לעמוד בו, ואז שוברים אותו.</string>
+
+    <string name="account">חשבון</string>
+    <string name="account_signed_out">לא מחוברים</string>
+    <string name="account_hint">התחברות עם גוגל שומרת את הנקודות, הרצף, העיטורים וההתקדמות בקריאה.</string>
+    <string name="signed_in_as">מחוברים כ־%1$s</string>
+    <string name="sign_in_google">התחברות עם גוגל</string>
+    <string name="sign_out">התנתקות</string>
+    <string name="sync_now">גיבוי עכשיו</string>
+    <string name="syncing">מגבים…</string>
+    <string name="sync_done">גובה ב־%1$s</string>
+    <string name="sync_failed">הגיבוי נכשל: %1$s</string>
+    <string name="sign_in_failed">ההתחברות לא הושלמה</string>
+    <string name="cloud_not_configured">הגיבוי לענן לא מוגדר בגרסה הזו</string>
+    <string name="cloud_not_configured_hint">מוסיפים קובץ google-services.json של Firebase למודול האפליקציה ובונים מחדש כדי להפעיל. ההסבר המלא נמצא בקובץ CLOUD_SETUP.md במאגר.</string>
+    <string name="session_minutes">%1$d דקות בישיבה הזו</string>
+    <string name="milestone_quarter">רבע מהדרך. ממשיכים!</string>
+    <string name="milestone_half">חצי מהספר מאחורינו!</string>
+    <string name="milestone_three_quarters">שלושה רבעים. כמעט שם!</string>
+    <string name="milestone_end">הגעתם לסוף!</string>
+    <string name="finish_book_now">סימון שהספר נקרא</string>
+    <string name="tap_to_hide">הקשה על הדף מסתירה את הסרגלים</string>
+    <string name="jump_to">קפיצה</string>
 </resources>
