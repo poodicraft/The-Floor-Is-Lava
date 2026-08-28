@@ -42,7 +42,8 @@ is there. So: turn everything on first, download the file last.
 > the old *Build* section no longer exists: Authentication now sits under
 > **Security** and Firestore under **Databases & Storage**. The steps below use
 > the *Search for products* box at the top of that menu instead, which works
-> whichever layout you are looking at.
+> whichever layout you are looking at. The *Project settings* page has moved
+> too — it is now **Settings → General**.
 
 ## Steps
 
@@ -82,8 +83,9 @@ is there. So: turn everything on first, download the file last.
 
    Publish the rules.
 
-5. **Now download the config.** Go to the gear icon → *Project settings*,
-   scroll to *Your apps*, select the Android app and download
+5. **Now download the config.** Click **Settings** in the left menu and choose
+   **General** — that page is what older guides call *Project settings*. Scroll
+   to *Your apps*, select the Android app and download
    **`google-services.json`**.
 
    Open the file in any text editor and check it contains a line with
@@ -112,7 +114,7 @@ is there. So: turn everything on first, download the file last.
 | What you see | What it means |
 | --- | --- |
 | "Cloud backup is not set up in this build" | The APK was built without `google-services.json`, or the file has no `"client_type": 3` entry. Redo steps 3 and 5. |
-| The account chooser opens, then nothing happens | The SHA-1 registered in Firebase does not match the APK's signing key. Check the fingerprint in *Project settings → Your apps*. |
+| The account chooser opens, then nothing happens | The SHA-1 registered in Firebase does not match the APK's signing key. Check the fingerprint under *Settings → General → Your apps*. |
 | "Backup failed: PERMISSION_DENIED" | The Firestore rules from step 4 were not published. |
 | "Backup failed" mentioning an unavailable database | Firestore was never created. Do step 4. |
 
