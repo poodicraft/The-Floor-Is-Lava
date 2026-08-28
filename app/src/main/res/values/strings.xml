@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">מסע הספרים</string>
+    <string name="app_tagline">הספרייה הכיתתית שלך</string>
+
+    <string name="nav_home">בית</string>
+    <string name="nav_library">ספרייה</string>
+    <string name="nav_stats">התקדמות</string>
+    <string name="nav_settings">הגדרות</string>
+
+    <string name="greeting_morning">בוקר טוב</string>
+    <string name="greeting_afternoon">צהריים טובים</string>
+    <string name="greeting_evening">ערב טוב</string>
+    <string name="reader_of_the_day">קורא היום</string>
+
+    <string name="level">שלב %1$d</string>
+    <string name="xp_short">נק׳</string>
+    <string name="xp_amount">%1$d נקודות</string>
+    <string name="xp_to_next">עוד %1$d נקודות לשלב %2$d</string>
+    <string name="xp_earned">%1$d+ נקודות</string>
+    <string name="level_up">עלית שלב!</string>
+    <string name="level_up_message">הגעת לשלב %1$d. ממשיכים!</string>
+    <string name="awesome">מעולה!</string>
+
+    <string name="streak_days">רצף של %1$d ימים</string>
+    <string name="streak_start">אפשר להתחיל רצף כבר היום</string>
+    <string name="daily_goal">יעד יומי</string>
+    <string name="minutes_today">%1$d מתוך %2$d דקות היום</string>
+    <string name="goal_reached">היעד היומי הושג! כל הכבוד.</string>
+    <string name="daily_goal_minutes">יעד יומי: %1$d דקות</string>
+
+    <string name="continue_reading">ממשיכים לקרוא</string>
+    <string name="quick_actions">פעולות מהירות</string>
+    <string name="recently_added">נוספו לאחרונה</string>
+    <string name="no_books_yet">המדף עוד ריק</string>
+    <string name="no_books_hint">לוחצים על הפלוס כדי לטעון ספרים מהקבצים במכשיר. אפשר TXT, PDF ו־EPUB.</string>
+    <string name="import_books">הוספת ספרים</string>
+    <string name="importing">מוסיפים ספרים…</string>
+    <string name="imported_count">נוספו %1$d ספרים</string>
+    <string name="import_failed">לא הצלחנו להוסיף את הקובץ</string>
+    <string name="supported_formats">נתמכים: TXT, PDF, EPUB, HTML, MD</string>
+
+    <string name="search_books">חיפוש ספר</string>
+    <string name="all_subjects">הכול</string>
+    <string name="favorites">מועדפים</string>
+    <string name="sort_by">מיון</string>
+    <string name="sort_recent">החדשים</string>
+    <string name="sort_title">שם</string>
+    <string name="sort_progress">התקדמות</string>
+    <string name="books_count">%1$d ספרים</string>
+    <string name="no_results">אין תוצאות לחיפוש הזה</string>
+
+    <string name="subject_general">כללי</string>
+    <string name="subject_math">מתמטיקה</string>
+    <string name="subject_science">מדעים</string>
+    <string name="subject_history">היסטוריה</string>
+    <string name="subject_literature">ספרות</string>
+    <string name="subject_language">שפות</string>
+    <string name="subject_art">אמנות</string>
+    <string name="subject_tech">טכנולוגיה</string>
+    <string name="subject_bible">תנ״ך ומורשת</string>
+
+    <string name="read_now">קריאה</string>
+    <string name="keep_reading">להמשיך לקרוא</string>
+    <string name="start_reading">מתחילים לקרוא</string>
+    <string name="read_again">לקרוא שוב</string>
+    <string name="finished">הסתיים</string>
+    <string name="mark_finished">סימון כספר שנקרא</string>
+    <string name="mark_unfinished">סימון כספר שלא נקרא</string>
+    <string name="progress_pct">%1$d%% נקראו</string>
+    <string name="minutes_read_book">%1$d דקות קריאה</string>
+    <string name="added_on">נוסף ב־%1$s</string>
+    <string name="unknown_author">מחבר לא ידוע</string>
+
+    <string name="flashcards">כרטיסיות</string>
+    <string name="quiz">חידון</string>
+    <string name="cards_count">%1$d כרטיסיות</string>
+    <string name="add_card">כרטיסייה חדשה</string>
+    <string name="card_front">שאלה</string>
+    <string name="card_back">תשובה</string>
+    <string name="no_cards">אין עדיין כרטיסיות</string>
+    <string name="no_cards_hint">כותבים שאלה ותשובה, ואז משחקים בחידון וצוברים נקודות.</string>
+    <string name="quiz_start">מתחילים חידון</string>
+    <string name="quiz_show_answer">הצגת התשובה</string>
+    <string name="quiz_knew_it">ידעתי</string>
+    <string name="quiz_missed">עוד לא</string>
+    <string name="quiz_progress">כרטיסייה %1$d מתוך %2$d</string>
+    <string name="quiz_done">החידון הסתיים</string>
+    <string name="quiz_score">%1$d תשובות נכונות מתוך %2$d</string>
+    <string name="play_again">משחקים שוב</string>
+    <string name="back_to_book">חזרה לספר</string>
+
+    <string name="edit_details">עריכת פרטים</string>
+    <string name="field_title">שם הספר</string>
+    <string name="field_author">מחבר</string>
+    <string name="field_subject">מקצוע</string>
+    <string name="save">שמירה</string>
+    <string name="cancel">ביטול</string>
+    <string name="delete">מחיקה</string>
+    <string name="delete_book">מחיקת ספר</string>
+    <string name="delete_confirm">להסיר את %1$s מהספרייה? גם עותק הקובץ יימחק.</string>
+    <string name="favorite_add">הוספה למועדפים</string>
+    <string name="favorite_remove">הסרה מהמועדפים</string>
+
+    <string name="reader_settings">הגדרות קריאה</string>
+    <string name="font_size">גודל הטקסט</string>
+    <string name="reader_theme">סגנון הדף</string>
+    <string name="reader_theme_light">בהיר</string>
+    <string name="reader_theme_sepia">ספיה</string>
+    <string name="reader_theme_dark">כהה</string>
+    <string name="page_of">עמוד %1$d מתוך %2$d</string>
+    <string name="loading">טוען…</string>
+    <string name="reader_error">לא הצלחנו לפתוח את הקובץ</string>
+    <string name="session_summary">קראת %1$d דקות</string>
+
+    <string name="language">שפה</string>
+    <string name="language_hebrew">עברית</string>
+    <string name="language_english">English</string>
+    <string name="language_arabic">العربية</string>
+    <string name="appearance">מראה</string>
+    <string name="theme_system">לפי המכשיר</string>
+    <string name="theme_light">בהיר</string>
+    <string name="theme_dark">כהה</string>
+    <string name="about">אודות</string>
+    <string name="about_text">מסע הספרים היא ספרייה כיתתית שממלאים בקבצים שלכם. קוראים, עוקבים אחרי ההתקדמות, בונים כרטיסיות ועולים שלבים.</string>
+    <string name="version_label">גרסה %1$s</string>
+
+    <string name="stats_title">ההתקדמות שלך</string>
+    <string name="total_xp">סך הנקודות</string>
+    <string name="books_in_library">ספרים</string>
+    <string name="books_finished">נקראו</string>
+    <string name="minutes_read_total">דקות קריאה</string>
+    <string name="cards_created">כרטיסיות</string>
+    <string name="badges">עיטורים</string>
+    <string name="badges_unlocked">%1$d מתוך %2$d נפתחו</string>
+    <string name="badge_locked">נעול</string>
+
+    <string name="badge_first_book">ספר ראשון</string>
+    <string name="badge_first_book_desc">להוסיף ספר ראשון לספרייה</string>
+    <string name="badge_shelf_builder">בונה מדפים</string>
+    <string name="badge_shelf_builder_desc">להחזיק חמישה ספרים בספרייה</string>
+    <string name="badge_finisher">מסיימים</string>
+    <string name="badge_finisher_desc">לסיים ספר שלם</string>
+    <string name="badge_bookworm">תולעת ספרים</string>
+    <string name="badge_bookworm_desc">לסיים חמישה ספרים</string>
+    <string name="badge_streak_3">מתחממים</string>
+    <string name="badge_streak_3_desc">לקרוא שלושה ימים ברצף</string>
+    <string name="badge_streak_7">גיבור השבוע</string>
+    <string name="badge_streak_7_desc">לקרוא שבעה ימים ברצף</string>
+    <string name="badge_hour">קריאה עמוקה</string>
+    <string name="badge_hour_desc">לצבור שישים דקות קריאה</string>
+    <string name="badge_quiz">אלוף החידון</string>
+    <string name="badge_quiz_desc">לענות נכון על כל הכרטיסיות בחידון</string>
+    <string name="badge_polyglot">רב־לשוני</string>
+    <string name="badge_polyglot_desc">להתנסות בשלוש השפות</string>
+    <string name="badge_scholar">חכם הכיתה</string>
+    <string name="badge_scholar_desc">להגיע לשלב חמש</string>
+
+    <string name="close">סגירה</string>
+    <string name="back">חזרה</string>
+    <string name="more">עוד</string>
+    <string name="tip_title">טיפ היום</string>
+    <string name="tip_1">קוראים קצת כל יום. עשר דקות שוות יותר מלילה אחד ארוך.</string>
+    <string name="tip_2">הופכים עמוד קשה לכרטיסייה ומתרגלים אותו אחר כך.</string>
+    <string name="tip_3">מסיימים פרק ואז מספרים אותו בקול במילים שלכם.</string>
+    <string name="tip_4">מחליפים שפה כדי לתרגל קריאה בעברית, אנגלית או ערבית.</string>
+    <string name="tip_5">בוחרים יעד יומי שאפשר לעמוד בו, ואז שוברים אותו.</string>
+</resources>

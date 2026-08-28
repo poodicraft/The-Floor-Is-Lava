@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">رحلة الكتب</string>
+    <string name="app_tagline">مكتبة صفك الخاصة</string>
+
+    <string name="nav_home">الرئيسية</string>
+    <string name="nav_library">المكتبة</string>
+    <string name="nav_stats">التقدم</string>
+    <string name="nav_settings">الإعدادات</string>
+
+    <string name="greeting_morning">صباح الخير</string>
+    <string name="greeting_afternoon">طاب يومك</string>
+    <string name="greeting_evening">مساء الخير</string>
+    <string name="reader_of_the_day">قارئ اليوم</string>
+
+    <string name="level">المستوى %1$d</string>
+    <string name="xp_short">نقطة</string>
+    <string name="xp_amount">%1$d نقطة</string>
+    <string name="xp_to_next">%1$d نقطة حتى المستوى %2$d</string>
+    <string name="xp_earned">%1$d+ نقطة</string>
+    <string name="level_up">مستوى جديد!</string>
+    <string name="level_up_message">وصلت إلى المستوى %1$d. واصل التقدم!</string>
+    <string name="awesome">رائع!</string>
+
+    <string name="streak_days">سلسلة %1$d أيام</string>
+    <string name="streak_start">ابدأ سلسلتك اليوم</string>
+    <string name="daily_goal">الهدف اليومي</string>
+    <string name="minutes_today">%1$d من %2$d دقيقة اليوم</string>
+    <string name="goal_reached">تحقق الهدف اليومي! عمل ممتاز.</string>
+    <string name="daily_goal_minutes">الهدف اليومي: %1$d دقيقة</string>
+
+    <string name="continue_reading">تابع القراءة</string>
+    <string name="quick_actions">إجراءات سريعة</string>
+    <string name="recently_added">أضيفت حديثا</string>
+    <string name="no_books_yet">رفك فارغ</string>
+    <string name="no_books_hint">اضغط على زر الإضافة لتحميل الكتب من ملفاتك. الصيغ TXT وPDF وEPUB مدعومة.</string>
+    <string name="import_books">إضافة كتب</string>
+    <string name="importing">جاري إضافة الكتب…</string>
+    <string name="imported_count">تمت إضافة %1$d كتب</string>
+    <string name="import_failed">تعذرت إضافة هذا الملف</string>
+    <string name="supported_formats">المدعوم: TXT وPDF وEPUB وHTML وMD</string>
+
+    <string name="search_books">ابحث عن كتاب</string>
+    <string name="all_subjects">الكل</string>
+    <string name="favorites">المفضلة</string>
+    <string name="sort_by">الترتيب</string>
+    <string name="sort_recent">الأحدث</string>
+    <string name="sort_title">العنوان</string>
+    <string name="sort_progress">التقدم</string>
+    <string name="books_count">%1$d كتب</string>
+    <string name="no_results">لا نتائج مطابقة للبحث</string>
+
+    <string name="subject_general">عام</string>
+    <string name="subject_math">رياضيات</string>
+    <string name="subject_science">علوم</string>
+    <string name="subject_history">تاريخ</string>
+    <string name="subject_literature">أدب</string>
+    <string name="subject_language">لغات</string>
+    <string name="subject_art">فنون</string>
+    <string name="subject_tech">تكنولوجيا</string>
+    <string name="subject_bible">تراث ودين</string>
+
+    <string name="read_now">اقرأ</string>
+    <string name="keep_reading">تابع القراءة</string>
+    <string name="start_reading">ابدأ القراءة</string>
+    <string name="read_again">اقرأ مرة أخرى</string>
+    <string name="finished">مكتمل</string>
+    <string name="mark_finished">وضع علامة مقروء</string>
+    <string name="mark_unfinished">وضع علامة غير مقروء</string>
+    <string name="progress_pct">%1$d%% مقروء</string>
+    <string name="minutes_read_book">%1$d دقيقة قراءة</string>
+    <string name="added_on">أضيف في %1$s</string>
+    <string name="unknown_author">مؤلف غير معروف</string>
+
+    <string name="flashcards">بطاقات</string>
+    <string name="quiz">اختبار</string>
+    <string name="cards_count">%1$d بطاقة</string>
+    <string name="add_card">بطاقة جديدة</string>
+    <string name="card_front">السؤال</string>
+    <string name="card_back">الجواب</string>
+    <string name="no_cards">لا توجد بطاقات بعد</string>
+    <string name="no_cards_hint">اكتب سؤالا وجوابا ثم العب الاختبار واجمع النقاط.</string>
+    <string name="quiz_start">ابدأ الاختبار</string>
+    <string name="quiz_show_answer">أظهر الجواب</string>
+    <string name="quiz_knew_it">عرفتها</string>
+    <string name="quiz_missed">ليس بعد</string>
+    <string name="quiz_progress">البطاقة %1$d من %2$d</string>
+    <string name="quiz_done">انتهى الاختبار</string>
+    <string name="quiz_score">%1$d إجابات صحيحة من %2$d</string>
+    <string name="play_again">العب مرة أخرى</string>
+    <string name="back_to_book">العودة إلى الكتاب</string>
+
+    <string name="edit_details">تعديل التفاصيل</string>
+    <string name="field_title">العنوان</string>
+    <string name="field_author">المؤلف</string>
+    <string name="field_subject">المادة</string>
+    <string name="save">حفظ</string>
+    <string name="cancel">إلغاء</string>
+    <string name="delete">حذف</string>
+    <string name="delete_book">حذف الكتاب</string>
+    <string name="delete_confirm">هل تريد إزالة %1$s من المكتبة? سيحذف الملف المنسوخ أيضا.</string>
+    <string name="favorite_add">إضافة إلى المفضلة</string>
+    <string name="favorite_remove">إزالة من المفضلة</string>
+
+    <string name="reader_settings">إعدادات القراءة</string>
+    <string name="font_size">حجم النص</string>
+    <string name="reader_theme">شكل الصفحة</string>
+    <string name="reader_theme_light">فاتح</string>
+    <string name="reader_theme_sepia">سيبيا</string>
+    <string name="reader_theme_dark">داكن</string>
+    <string name="page_of">صفحة %1$d من %2$d</string>
+    <string name="loading">جاري التحميل…</string>
+    <string name="reader_error">تعذر فتح هذا الملف</string>
+    <string name="session_summary">قرأت %1$d دقيقة</string>
+
+    <string name="language">اللغة</string>
+    <string name="language_hebrew">עברית</string>
+    <string name="language_english">English</string>
+    <string name="language_arabic">العربية</string>
+    <string name="appearance">المظهر</string>
+    <string name="theme_system">حسب الجهاز</string>
+    <string name="theme_light">فاتح</string>
+    <string name="theme_dark">داكن</string>
+    <string name="about">حول التطبيق</string>
+    <string name="about_text">رحلة الكتب مكتبة صفية تملؤها بملفاتك الخاصة. اقرأ وتابع تقدمك وأنشئ بطاقات وارتق بالمستويات.</string>
+    <string name="version_label">الإصدار %1$s</string>
+
+    <string name="stats_title">تقدمك</string>
+    <string name="total_xp">مجموع النقاط</string>
+    <string name="books_in_library">الكتب</string>
+    <string name="books_finished">المكتملة</string>
+    <string name="minutes_read_total">دقائق القراءة</string>
+    <string name="cards_created">البطاقات</string>
+    <string name="badges">الأوسمة</string>
+    <string name="badges_unlocked">%1$d من %2$d مفتوحة</string>
+    <string name="badge_locked">مقفل</string>
+
+    <string name="badge_first_book">الكتاب الأول</string>
+    <string name="badge_first_book_desc">أضف كتابك الأول</string>
+    <string name="badge_shelf_builder">باني الرفوف</string>
+    <string name="badge_shelf_builder_desc">اجمع خمسة كتب في مكتبتك</string>
+    <string name="badge_finisher">منجز</string>
+    <string name="badge_finisher_desc">أنه كتابا كاملا</string>
+    <string name="badge_bookworm">عاشق الكتب</string>
+    <string name="badge_bookworm_desc">أنه خمسة كتب</string>
+    <string name="badge_streak_3">انطلاقة</string>
+    <string name="badge_streak_3_desc">اقرأ ثلاثة أيام متتالية</string>
+    <string name="badge_streak_7">بطل الأسبوع</string>
+    <string name="badge_streak_7_desc">اقرأ سبعة أيام متتالية</string>
+    <string name="badge_hour">قارئ عميق</string>
+    <string name="badge_hour_desc">اجمع ستين دقيقة قراءة</string>
+    <string name="badge_quiz">بطل الاختبار</string>
+    <string name="badge_quiz_desc">أجب عن كل البطاقات بشكل صحيح</string>
+    <string name="badge_polyglot">متعدد اللغات</string>
+    <string name="badge_polyglot_desc">جرب اللغات الثلاث</string>
+    <string name="badge_scholar">عالم الصف</string>
+    <string name="badge_scholar_desc">اوصل إلى المستوى الخامس</string>
+
+    <string name="close">إغلاق</string>
+    <string name="back">رجوع</string>
+    <string name="more">المزيد</string>
+    <string name="tip_title">نصيحة اليوم</string>
+    <string name="tip_1">اقرأ قليلا كل يوم. عشر دقائق أفضل من ليلة طويلة واحدة.</string>
+    <string name="tip_2">حول الصفحة الصعبة إلى بطاقة واختبر نفسك لاحقا.</string>
+    <string name="tip_3">أنه فصلا ثم احكه بصوتك وبكلماتك أنت.</string>
+    <string name="tip_4">بدل اللغة لتتدرب على القراءة بالعبرية أو الإنجليزية أو العربية.</string>
+    <string name="tip_5">اختر هدفا يوميا تستطيع الالتزام به ثم تجاوزه.</string>
+</resources>

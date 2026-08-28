@@ -1,0 +1,56 @@
+Welcome to BookQuest
+
+This is a short book that explains how your library works.
+Read it now, or come back to it whenever you like.
+
+
+Chapter one: what this quest is
+
+BookQuest is a library that you build yourself.
+Every book you add gets its own colourful cover, a school subject and a progress bar.
+The more you read, the more points you earn and the higher your level climbs.
+
+
+Chapter two: adding books
+
+1. Tap the big plus button on the home or library screen.
+2. Pick one file, or several at once, from your device.
+3. The book is copied into the app, so you can read it with no internet at all.
+
+Supported formats are TXT, PDF, EPUB, HTML and MD.
+Your teacher can send you a file by email or chat, and you simply add it here.
+
+
+Chapter three: points, streaks and badges
+
+Every minute of reading is worth three points.
+Finishing a book is worth fifty points.
+Every two hundred points moves you up a level.
+
+Read on two days in a row and a streak begins.
+Three days unlocks a badge, seven days unlocks a rarer one.
+
+
+Chapter four: flashcards and quizzes
+
+Every book has room for flashcards.
+Write a question on one side and the answer on the other,
+then play the quiz and find out what really stuck.
+
+It is the fastest way to study for a test:
+read, write three questions, play.
+
+
+Chapter five: three languages
+
+This app speaks Hebrew, English and Arabic.
+Change the language any time from the settings screen,
+and the whole layout flips between right to left and left to right for you.
+
+Try all three languages and a special badge is yours.
+
+
+The end
+
+Your turn now. Add your first book and start reading.
+Enjoy!
