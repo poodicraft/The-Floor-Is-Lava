@@ -38,6 +38,12 @@ before that step is missing it, the build has no `default_web_client_id` to
 compile in, and the app still reports "not configured" even though the file
 is there. So: turn everything on first, download the file last.
 
+> **A note on the console menu.** Firebase reorganised its left hand menu, so
+> the old *Build* section no longer exists: Authentication now sits under
+> **Security** and Firestore under **Databases & Storage**. The steps below use
+> the *Search for products* box at the top of that menu instead, which works
+> whichever layout you are looking at.
+
 ## Steps
 
 1. **Create the project.** Go to <https://console.firebase.google.com>,
@@ -52,14 +58,15 @@ is there. So: turn everything on first, download the file last.
    Click through the rest of the wizard. **Skip the download and the "add the
    SDK" instructions** — the code is already in this repository.
 
-3. **Turn on Google sign in.** Open *Build → Authentication → Get started*,
+3. **Turn on Google sign in.** Type `Authentication` into the *Search for
+   products* box at the top of the left menu and open it, then *Get started*,
    pick **Google** from the provider list, toggle it to enabled, choose a
    project support email, and save. This is the step that creates the web
    client the app needs.
 
-4. **Create the database.** Open *Build → Firestore Database → Create
-   database*. Pick a location near your school and start in **production
-   mode**. Then open the **Rules** tab and replace the contents with this, so
+4. **Create the database.** Search for `Firestore` the same way and open
+   *Firestore Database → Create database*. Pick a location near your school
+   and start in **production mode**. Then open the **Rules** tab and replace the contents with this, so
    each student can only ever read and write their own document:
 
    ```
