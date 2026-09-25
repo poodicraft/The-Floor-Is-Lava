@@ -30,4 +30,23 @@
     <string name="quit_message">The lava will win this one.</string>
     <string name="quit_confirm">Quit</string>
     <string name="quit_cancel">Keep playing</string>
+
+    <string name="auth_subtitle">Create an account to race friends\nand climb the leaderboards.</string>
+    <string name="auth_tab_sign_up">CREATE ACCOUNT</string>
+    <string name="auth_tab_log_in">LOG IN</string>
+    <string name="auth_username_hint">Username (3–16 letters, numbers, _)</string>
+    <string name="auth_email_hint">Email</string>
+    <string name="auth_password_hint">Password (6+ characters)</string>
+    <string name="auth_sign_up_button">CREATE ACCOUNT</string>
+    <string name="auth_log_in_button">LOG IN</string>
+    <string name="auth_not_configured_title">Online play isn\'t set up yet</string>
+    <string name="auth_not_configured_body">Accounts, multiplayer and leaderboards need this build to be connected to a Firebase project. Follow FIREBASE_SETUP.md in the project to connect it.\n\nYou can still play solo in the meantime.</string>
+    <string name="auth_play_offline">PLAY SOLO OFFLINE</string>
+
+    <string name="mp_intro">Race a friend to the safe zone.\nTogether? You race to the SAME zone.\nApart? You each get your own zone at exactly the same distance.</string>
+
+    <string name="quit_message_race">Quitting counts as a loss in this race.</string>
+    <string name="new_match">NEW MATCH</string>
+    <string name="menu_multiplayer">⚔️ MULTIPLAYER</string>
+    <string name="menu_leaderboards">🏆 LEADERBOARDS</string>
 </resources>

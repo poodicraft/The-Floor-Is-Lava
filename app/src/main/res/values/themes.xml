@@ -62,6 +62,16 @@
         <item name="android:textSize">11sp</item>
     </style>
 
+    <style name="LavaInput">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">52dp</item>
+        <item name="android:background">@drawable/bg_input</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textColorHint">#8CD9A98C</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:singleLine">true</item>
+    </style>
+
     <style name="PillButton">
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">52dp</item>

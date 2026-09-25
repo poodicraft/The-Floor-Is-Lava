@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_splash_gradient">
+
+    <com.lava.floorislava.LavaBackgroundView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:paddingStart="24dp"
+            android:paddingTop="56dp"
+            android:paddingEnd="24dp"
+            android:paddingBottom="160dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-black"
+                android:gravity="center"
+                android:letterSpacing="0.06"
+                android:shadowColor="@color/lava_red"
+                android:shadowRadius="18"
+                android:text="FLOOR IS LAVA"
+                android:textColor="@color/lava_gold"
+                android:textSize="34sp" />
+
+            <TextView
+                android:id="@+id/authSubtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:text="@string/auth_subtitle"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp" />
+
+            <!-- Shown when the APK was built without google-services.json -->
+            <LinearLayout
+                android:id="@+id/notConfiguredGroup"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="28dp"
+                android:background="@drawable/bg_card"
+                android:orientation="vertical"
+                android:padding="20dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/auth_not_configured_title"
+                    android:textColor="@color/lava_gold"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:lineSpacingExtra="3dp"
+                    android:text="@string/auth_not_configured_body"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="14sp" />
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/playOfflineButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="18dp"
+                    android:background="@drawable/bg_play_again_button"
+                    android:text="@string/auth_play_offline"
+                    android:textColor="@color/lava_black"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/authForm"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="28dp"
+                android:background="@drawable/bg_card"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:background="@drawable/bg_mode_toggle_track"
+                    android:orientation="horizontal"
+                    android:padding="4dp">
+
+                    <TextView
+                        android:id="@+id/signUpTab"
+                        style="@style/DifficultyPill"
+                        android:text="@string/auth_tab_sign_up" />
+
+                    <TextView
+                        android:id="@+id/logInTab"
+                        style="@style/DifficultyPill"
+                        android:text="@string/auth_tab_log_in" />
+                </LinearLayout>
+
+                <EditText
+                    android:id="@+id/usernameInput"
+                    style="@style/LavaInput"
+                    android:layout_marginTop="18dp"
+                    android:autofillHints="username"
+                    android:hint="@string/auth_username_hint"
+                    android:inputType="textVisiblePassword|textNoSuggestions"
+                    android:maxLength="16" />
+
+                <EditText
+                    android:id="@+id/emailInput"
+                    style="@style/LavaInput"
+                    android:layout_marginTop="12dp"
+                    android:autofillHints="emailAddress"
+                    android:hint="@string/auth_email_hint"
+                    android:inputType="textEmailAddress" />
+
+                <EditText
+                    android:id="@+id/passwordInput"
+                    style="@style/LavaInput"
+                    android:layout_marginTop="12dp"
+                    android:autofillHints="password"
+                    android:hint="@string/auth_password_hint"
+                    android:inputType="textPassword" />
+
+                <TextView
+                    android:id="@+id/authError"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:textColor="@color/danger_flash"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="54dp"
+                    android:layout_marginTop="18dp">
+
+                    <androidx.appcompat.widget.AppCompatButton
+                        android:id="@+id/submitButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/bg_play_again_button"
+                        android:textColor="@color/lava_black"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <ProgressBar
+                        android:id="@+id/authProgress"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:layout_gravity="center"
+                        android:elevation="8dp"
+                        android:indeterminateTint="@color/lava_black"
+                        android:visibility="gone" />
+                </FrameLayout>
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+</FrameLayout>

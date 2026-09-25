@@ -32,6 +32,33 @@ To build it yourself in Android Studio instead:
 - Copy it to any Android phone and tap to install (enable "Install from
   unknown sources" if prompted — normal for APKs installed outside the Play Store)
 
+## Accounts, multiplayer and leaderboards (Firebase)
+
+These need a one-time Firebase setup — see **[FIREBASE_SETUP.md](FIREBASE_SETUP.md)**.
+Without it the app still builds and single player works.
+
+- **Account required:** after granting location, players create an account
+  (username + email + password) or log in. Usernames are unique.
+- **Multiplayer race:** one player taps *Multiplayer → Create match* and
+  sends the 5-letter code; the friend taps *Join*. Both phones share their
+  GPS position in the lobby, and the host starts the race:
+  - **Together** (within 60 m of each other): you both race to the **same
+    safe zone**, placed exactly the same distance from each of you (on the
+    line halfway between you).
+  - **Apart:** you each get **your own safe zone, exactly the same distance
+    away** from where you stand.
+  - Always the **same difficulty** (the host's) and the same clock. Each
+    player's time is measured on their own phone from their own "GO", so
+    the faster escape wins even if the phones started a moment apart. You
+    see your friend's distance to go live, and your friend's finish time as
+    soon as they're safe.
+  - Every zone is checked against real buildings, water and roads, just
+    like single player.
+- **Leaderboards:** 🌍 Global (top 50), 👥 Friends (add by username, and
+  anyone you race is added automatically), 📍 Area (players from the same
+  city). Ranked by points: 50 / 100 / 200 per escape on Easy / Normal /
+  Hard, +1 per second left, +100 for beating a friend in a race.
+
 ## Main menu
 
 - Animated lava backdrop with rising embers

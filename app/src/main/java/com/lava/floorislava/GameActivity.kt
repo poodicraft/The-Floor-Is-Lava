@@ -25,8 +25,10 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.gms.location.*
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.firebase.firestore.ListenerRegistration
 import com.lava.floorislava.databinding.ActivityGameBinding
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -70,6 +72,20 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
     private var closestDistanceM = Double.MAX_VALUE
     private var lastTickSecond = -1
 
+    // Multiplayer race state (null matchCode = single player)
+    private var matchCode: String? = null
+    private val isMatch get() = matchCode != null
+    private var myRole: Role? = null
+    private var matchRegistration: ListenerRegistration? = null
+    private var latestMatch: Match? = null
+    private var raceStarting = false
+    private var roundFinished = false
+    private var outcomeReported = false
+    private var myOutcome: String? = null
+    private var myTimeMs: Long? = null
+    private var raceBonusRecorded = false
+    private var lastProgressReportAt = 0L
+
     private lateinit var locationCallback: LocationCallback
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -100,7 +116,7 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
         map.overlays.clear()
 
         binding.startButton.setOnClickListener {
-            if (!gameActive) startRound()
+            if (!gameActive && !isMatch) startRound()
         }
 
         binding.recenterButton.setOnClickListener {
@@ -114,7 +130,12 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
         }
 
         binding.playAgainButton.setOnClickListener {
-            resetForNewRound()
+            if (isMatch) {
+                startActivity(Intent(this, MultiplayerActivity::class.java))
+                finish()
+            } else {
+                resetForNewRound()
+            }
         }
 
         binding.resultMenuButton.setOnClickListener { finish() }
@@ -128,6 +149,8 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
         if (hasLocationPermission()) {
             enableLocation()
         }
+
+        intent.getStringExtra(EXTRA_MATCH_CODE)?.let { setupMatchMode(it) }
     }
 
     private fun hasLocationPermission(): Boolean {
@@ -169,7 +192,8 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
             hasCenteredCamera = true
             map.controller.setCenter(point)
             map.controller.setZoom(19.0)
-            binding.statusText.text = "Tap START to place the safe zone"
+            if (!isMatch) binding.statusText.text = "Tap START to place the safe zone"
+            Cloud.updateAreaInBackground(this, point)
         }
 
         if (gameActive) {
@@ -289,14 +313,18 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
 
     /** Back button / ✕ button: ask before abandoning a live round. */
     private fun leaveToMenu() {
-        if (!gameActive) {
+        val raceInProgress = isMatch && !roundFinished
+        if (!gameActive && !raceInProgress) {
             finish()
             return
         }
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.quit_title)
-            .setMessage(R.string.quit_message)
-            .setPositiveButton(R.string.quit_confirm) { _, _ -> finish() }
+            .setMessage(if (isMatch) R.string.quit_message_race else R.string.quit_message)
+            .setPositiveButton(R.string.quit_confirm) { _, _ ->
+                reportOutcome(Outcome.QUIT, elapsedSinceStart())
+                finish()
+            }
             .setNegativeButton(R.string.quit_cancel, null)
             .show()
     }
@@ -361,6 +389,8 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
                     pulseTimer()
                     Haptics.tick(this@GameActivity)
                 }
+
+                if (isMatch) checkOpponentAhead()
             }
 
             override fun onFinish() {
@@ -412,6 +442,7 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
         val distance = GeoUtils.distanceMeters(playerLoc, safe)
         val remaining = (distance - safeZoneRadiusM).coerceAtLeast(0.0)
         closestDistanceM = minOf(closestDistanceM, remaining)
+        if (isMatch) reportProgressThrottled(remaining)
 
         binding.distanceText.text = if (distance <= safeZoneRadiusM) {
             "You're in the safe zone!"
@@ -438,12 +469,15 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
 
     private fun endRound(won: Boolean) {
         gameActive = false
+        roundFinished = true
         countDownTimer?.cancel()
         binding.arButton.visibility = View.INVISIBLE
 
-        val elapsedMs = (SystemClock.elapsedRealtime() - roundStartedAt).coerceAtMost(gameDurationMs)
+        val elapsedMs = elapsedSinceStart()
         val newBest = GamePrefs.recordResult(this, difficulty, won, elapsedMs)
         val stats = GamePrefs.stats(this)
+        Cloud.recordRoundInBackground(difficulty, won, elapsedMs)
+        reportOutcome(if (won) Outcome.ESCAPED else Outcome.TIMEOUT, elapsedMs)
 
         if (won) {
             Haptics.win(this)
@@ -483,6 +517,177 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
             .setDuration(450L)
             .setInterpolator(OvershootInterpolator(1.6f))
             .start()
+
+        val match = latestMatch
+        val role = myRole
+        if (match != null && role != null) showRaceResult(match, role)
+    }
+
+    private fun elapsedSinceStart(): Long =
+        if (roundStartedAt == 0L) 0L
+        else (SystemClock.elapsedRealtime() - roundStartedAt).coerceAtMost(gameDurationMs)
+
+    // --- Multiplayer race ---
+
+    private fun setupMatchMode(code: String) {
+        matchCode = code
+        binding.startButton.isEnabled = false
+        binding.startButtonText.text = "…"
+        binding.statusText.text = "Loading the race…"
+        binding.opponentText.visibility = View.VISIBLE
+        binding.opponentText.text = "⚔️ Connecting to your friend…"
+        binding.playAgainButton.text = getString(R.string.new_match)
+        matchRegistration = Matches.listen(code) { onMatchUpdate(it) }
+    }
+
+    private fun onMatchUpdate(match: Match?) {
+        if (match == null) return
+        latestMatch = match
+        val role = myRole ?: match.roleOf(Cloud.uid)?.also { myRole = it } ?: return
+
+        if (difficulty != match.difficulty && !gameActive) {
+            difficulty = match.difficulty
+            binding.timerText.text = formatDuration(gameDurationMs)
+        }
+        binding.difficultyChip.text = "⚔️ ${difficulty.label}"
+
+        val zone = match.zone(role)
+        if (match.status == MatchStatus.RUNNING && zone != null && !raceStarting) {
+            raceStarting = true
+            startRaceCountdown(match, role, zone)
+        }
+
+        renderOpponent(match, role)
+        if (roundFinished) showRaceResult(match, role) else checkOpponentAhead()
+    }
+
+    /** 3-2-1-GO, then the normal countdown, towards this player's zone from the match. */
+    private fun startRaceCountdown(match: Match, role: Role, zone: GeoPoint) {
+        val opponent = match.nameOf(role.other)
+        val distance = match.targetDistanceM.toInt()
+        binding.statusText.text = if (match.sameSpot) {
+            "Same safe zone as $opponent — $distance m from each of you"
+        } else {
+            "Your own safe zone, $distance m away — same distance as $opponent's"
+        }
+        lifecycleScope.launch {
+            for (n in 3 downTo 1) {
+                binding.startButtonText.text = n.toString()
+                pulseView(binding.startButton)
+                Haptics.tick(this@GameActivity)
+                delay(1000L)
+            }
+            gameActive = true
+            beginCountdown(currentLocation ?: zone, zone)
+            binding.statusText.text = "GO! Beat $opponent to the safe zone!"
+        }
+    }
+
+    private fun pulseView(view: View) {
+        view.animate().cancel()
+        view.scaleX = 1.15f
+        view.scaleY = 1.15f
+        view.animate().scaleX(1f).scaleY(1f).setDuration(400L)
+            .setInterpolator(DecelerateInterpolator()).start()
+    }
+
+    private fun renderOpponent(match: Match, role: Role) {
+        val other = role.other
+        val name = match.nameOf(other)
+        binding.opponentText.text = when (match.outcome(other)) {
+            Outcome.ESCAPED -> "🏁 $name escaped in ${formatDuration(match.timeMs(other) ?: 0L)}"
+            Outcome.TIMEOUT -> "🌋 The lava got $name"
+            Outcome.QUIT -> "🏳️ $name quit the race"
+            else -> match.remainingM(other)?.let { "🧑 $name: ${it.toInt()} m to go" }
+                ?: "🧑 $name is getting ready…"
+        }
+    }
+
+    /** If the other player already escaped faster than we possibly can now, the race is lost. */
+    private fun checkOpponentAhead() {
+        if (!gameActive) return
+        val match = latestMatch ?: return
+        val role = myRole ?: return
+        if (match.outcome(role.other) != Outcome.ESCAPED) return
+        val theirTime = match.timeMs(role.other) ?: return
+        if (elapsedSinceStart() > theirTime) endRound(won = false)
+    }
+
+    private fun reportProgressThrottled(remainingM: Double) {
+        val code = matchCode ?: return
+        val role = myRole ?: return
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastProgressReportAt < 2500L) return
+        lastProgressReportAt = now
+        Matches.reportProgress(code, role, remainingM)
+    }
+
+    private fun reportOutcome(outcome: String, timeMs: Long) {
+        val code = matchCode ?: return
+        val role = myRole ?: return
+        if (outcomeReported) return
+        outcomeReported = true
+        myOutcome = outcome
+        myTimeMs = timeMs
+        Matches.reportOutcome(code, role, outcome, timeMs)
+    }
+
+    /** Rewrites the result card with the race result; called again as the other player finishes. */
+    private fun showRaceResult(match: Match, role: Role) {
+        val opponent = match.nameOf(role.other)
+        val theirTime = match.timeMs(role.other)
+        val mine = myOutcome ?: match.outcome(role)
+        val myTime = myTimeMs ?: match.timeMs(role)
+        val result = match.resultFor(role, mine, myTime)
+
+        val won = result == RaceResult.WON || result == RaceResult.PENDING && mine == Outcome.ESCAPED
+        binding.resultPanel.setBackgroundResource(if (won || result == RaceResult.DRAW) R.drawable.bg_win_panel else R.drawable.bg_lose_panel)
+        binding.resultTitle.setTextColor(
+            ContextCompat.getColor(this, if (won || result == RaceResult.DRAW) R.color.safe_green_glow else R.color.lava_orange_bright)
+        )
+
+        when (result) {
+            RaceResult.PENDING -> {
+                binding.resultIcon.text = "⏳"
+                binding.resultTitle.text = "YOU ESCAPED!"
+                binding.resultSubtitle.text = "Waiting for $opponent to finish…"
+            }
+            RaceResult.WON -> {
+                binding.resultIcon.text = "🏆"
+                binding.resultTitle.text = "YOU BEAT ${opponent.uppercase()}!"
+                binding.resultSubtitle.text = if (match.outcome(role.other) == Outcome.ESCAPED && theirTime != null && myTime != null) {
+                    "You: ${formatDuration(myTime)}  ·  $opponent: ${formatDuration(theirTime)}
++${Difficulty.MULTIPLAYER_WIN_BONUS} race bonus points"
+                } else {
+                    "$opponent didn't make it.
++${Difficulty.MULTIPLAYER_WIN_BONUS} race bonus points"
+                }
+                if (!raceBonusRecorded) {
+                    raceBonusRecorded = true
+                    Cloud.recordMultiplayerWinInBackground()
+                    Haptics.win(this)
+                }
+            }
+            RaceResult.LOST -> {
+                binding.resultIcon.text = "🌋"
+                binding.resultTitle.text = "${opponent.uppercase()} WINS"
+                binding.resultSubtitle.text = if (match.outcome(role.other) == Outcome.ESCAPED && theirTime != null) {
+                    "$opponent reached safety in ${formatDuration(theirTime)}."
+                } else {
+                    "The lava got you."
+                }
+            }
+            RaceResult.DRAW -> {
+                binding.resultIcon.text = "🤝"
+                binding.resultTitle.text = "DEAD HEAT!"
+                binding.resultSubtitle.text = "You both escaped in ${formatDuration(myTime ?: 0L)}."
+            }
+            RaceResult.NOBODY -> {
+                binding.resultIcon.text = "🌋"
+                binding.resultTitle.text = "THE LAVA WINS"
+                binding.resultSubtitle.text = "Neither of you made it this time."
+            }
+        }
     }
 
     private fun resetForNewRound() {
@@ -530,11 +735,18 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
 
     override fun onDestroy() {
         super.onDestroy()
+        // Leaving mid-race (e.g. swiping the app away) counts as quitting.
+        if (isMatch && raceStarting && !roundFinished) reportOutcome(Outcome.QUIT, elapsedSinceStart())
+        matchRegistration?.remove()
         countDownTimer?.cancel()
         safeZoneSearchJob?.cancel()
         markerAnimator?.cancel()
         if (::fusedLocationClient.isInitialized) {
             fusedLocationClient.removeLocationUpdates(locationCallback)
         }
+    }
+
+    companion object {
+        const val EXTRA_MATCH_CODE = "extra_match_code"
     }
 }

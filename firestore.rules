@@ -1,0 +1,51 @@
+rules_version = '2';
+
+// Security rules for Floor Is Lava. Paste this into
+// Firebase console → Firestore Database → Rules, then press Publish.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Player profiles and scores. Everyone signed in can read them (that's
+    // what the leaderboards show); only the owner can write their own.
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create, update: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.username is string;
+      allow delete: if false;
+
+      // Friends lists. Adding a friend writes to both players' lists, so
+      // either of the two players may create the link.
+      match /friends/{friendUid} {
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow create, update: if signedIn()
+          && (request.auth.uid == uid || request.auth.uid == friendUid);
+        allow delete: if signedIn() && request.auth.uid == uid;
+      }
+    }
+
+    // One document per username, so no two players can share a name.
+    match /usernames/{name} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Multiplayer matches. Only the two players can change a match; anyone
+    // signed in can take the empty guest seat by joining with the code.
+    match /matches/{code} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.hostUid == request.auth.uid;
+      allow update: if signedIn() && (
+        resource.data.hostUid == request.auth.uid
+        || resource.data.guestUid == request.auth.uid
+        || (resource.data.guestUid == null && request.resource.data.guestUid == request.auth.uid)
+      );
+      allow delete: if false;
+    }
+  }
+}

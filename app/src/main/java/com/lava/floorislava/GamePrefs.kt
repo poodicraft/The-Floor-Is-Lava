@@ -18,9 +18,27 @@ enum class Difficulty(
     NORMAL("NORMAL", 120_000L, 15.0, 45.0, 6.0),
     HARD("HARD", 75_000L, 30.0, 70.0, 5.0);
 
+    /** Leaderboard points for escaping: a base per difficulty plus 1 per second left on the clock. */
+    fun pointsForEscape(elapsedMs: Long): Int {
+        val base = when (this) {
+            EASY -> 50
+            NORMAL -> 100
+            HARD -> 200
+        }
+        val secondsLeft = ((durationMs - elapsedMs).coerceAtLeast(0L) / 1000L).toInt()
+        return base + secondsLeft
+    }
+
     /** e.g. "2:00 · safe zone 15–45 m away" */
     fun summary(): String =
         "${formatDuration(durationMs)} · safe zone ${minDistanceM.toInt()}–${maxDistanceM.toInt()} m away"
+
+    companion object {
+        /** Extra leaderboard points for beating a friend in a multiplayer race. */
+        const val MULTIPLAYER_WIN_BONUS = 100
+
+        fun fromName(name: String?): Difficulty = values().firstOrNull { it.name == name } ?: NORMAL
+    }
 }
 
 /** Formats milliseconds as m:ss. */
@@ -49,8 +67,7 @@ object GamePrefs {
         context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
 
     fun difficulty(context: Context): Difficulty {
-        val name = prefs(context).getString(KEY_DIFFICULTY, Difficulty.NORMAL.name)
-        return Difficulty.values().firstOrNull { it.name == name } ?: Difficulty.NORMAL
+        return Difficulty.fromName(prefs(context).getString(KEY_DIFFICULTY, Difficulty.NORMAL.name))
     }
 
     fun setDifficulty(context: Context, difficulty: Difficulty) {

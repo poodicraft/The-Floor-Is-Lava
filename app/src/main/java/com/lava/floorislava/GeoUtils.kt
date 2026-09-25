@@ -36,6 +36,31 @@ object GeoUtils {
         return GeoPoint(Math.toDegrees(newLatRad), Math.toDegrees(newLngRad))
     }
 
+    /** The point [distanceMeters] away from [origin] along compass [bearingDeg] (0 = north). */
+    fun destination(origin: GeoPoint, distanceMeters: Double, bearingDeg: Double): GeoPoint {
+        val latRad = Math.toRadians(origin.latitude)
+        val lngRad = Math.toRadians(origin.longitude)
+        val bearingRad = Math.toRadians(bearingDeg)
+        val angularDistance = distanceMeters / EARTH_RADIUS_METERS
+
+        val newLatRad = asin(
+            sin(latRad) * cos(angularDistance) +
+                cos(latRad) * sin(angularDistance) * cos(bearingRad)
+        )
+        val newLngRad = lngRad + atan2(
+            sin(bearingRad) * sin(angularDistance) * cos(latRad),
+            cos(angularDistance) - sin(latRad) * sin(newLatRad)
+        )
+        return GeoPoint(Math.toDegrees(newLatRad), Math.toDegrees(newLngRad))
+    }
+
+    /** Geographic midpoint of [a] and [b] (exact enough at walking distances). */
+    fun midpoint(a: GeoPoint, b: GeoPoint): GeoPoint {
+        val distance = distanceMeters(a, b)
+        if (distance < 0.01) return GeoPoint(a.latitude, a.longitude)
+        return destination(a, distance / 2, ArMath.bearingBetween(a, b))
+    }
+
     /** Haversine distance in meters between two GeoPoints. */
     fun distanceMeters(a: GeoPoint, b: GeoPoint): Double {
         val lat1 = Math.toRadians(a.latitude)

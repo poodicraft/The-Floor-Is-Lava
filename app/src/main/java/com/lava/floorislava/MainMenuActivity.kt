@@ -11,8 +11,10 @@ import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.lava.floorislava.databinding.ActivityMainMenuBinding
+import kotlinx.coroutines.launch
 
 class MainMenuActivity : AppCompatActivity() {
 
@@ -30,6 +32,10 @@ class MainMenuActivity : AppCompatActivity() {
         binding.difficultyNormal.setOnClickListener { selectDifficulty(Difficulty.NORMAL) }
         binding.difficultyHard.setOnClickListener { selectDifficulty(Difficulty.HARD) }
 
+        binding.multiplayerButton.setOnClickListener { openOnline(MultiplayerActivity::class.java) }
+        binding.leaderboardsButton.setOnClickListener { openOnline(LeaderboardActivity::class.java) }
+        binding.accountChip.setOnClickListener { showAccount() }
+
         binding.howToPlayButton.setOnClickListener { showHowToPlay() }
         binding.hapticsButton.setOnClickListener {
             val enabled = !GamePrefs.hapticsEnabled(this)
@@ -46,6 +52,7 @@ class MainMenuActivity : AppCompatActivity() {
         showDifficulty(GamePrefs.difficulty(this))
         updateStats()
         updateHapticsButton()
+        updateAccountChip()
         startPlayPulse()
     }
 
@@ -64,6 +71,56 @@ class MainMenuActivity : AppCompatActivity() {
         // permission screen instead of opening a map that can't find them.
         val target = if (hasPermission) GameActivity::class.java else SplashActivity::class.java
         startActivity(Intent(this, target))
+    }
+
+    /** Multiplayer and leaderboards need an account (and a Firebase-enabled build). */
+    private fun openOnline(target: Class<*>) {
+        when {
+            !Cloud.isConfigured(this) -> MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.auth_not_configured_title)
+                .setMessage(R.string.auth_not_configured_body)
+                .setPositiveButton(R.string.how_to_play_ok, null)
+                .show()
+            !Cloud.isSignedIn(this) -> startActivity(Intent(this, AuthActivity::class.java))
+            else -> startActivity(Intent(this, target))
+        }
+    }
+
+    private fun updateAccountChip() {
+        if (!Cloud.isSignedIn(this)) {
+            binding.accountChip.text = if (Cloud.isConfigured(this)) "👤 SIGN IN" else "📴 OFFLINE"
+            return
+        }
+        binding.accountChip.text = "👤 …"
+        lifecycleScope.launch {
+            val profile = runCatching { Cloud.myProfile() }.getOrNull()
+            binding.accountChip.text = if (profile != null) {
+                "👤 ${profile.username}  ·  ${profile.points} pts"
+            } else {
+                "👤 ${Cloud.auth.currentUser?.email ?: "Account"}"
+            }
+        }
+    }
+
+    private fun showAccount() {
+        if (!Cloud.isConfigured(this)) {
+            openOnline(AuthActivity::class.java)
+            return
+        }
+        if (!Cloud.isSignedIn(this)) {
+            startActivity(Intent(this, AuthActivity::class.java))
+            return
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Your account")
+            .setMessage("Signed in as ${Cloud.auth.currentUser?.email ?: "unknown"}")
+            .setPositiveButton("Close", null)
+            .setNegativeButton("Sign out") { _, _ ->
+                Cloud.signOut()
+                startActivity(Intent(this, AuthActivity::class.java))
+                finish()
+            }
+            .show()
     }
 
     private fun selectDifficulty(difficulty: Difficulty) {
