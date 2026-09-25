@@ -656,11 +656,9 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
                 binding.resultIcon.text = "🏆"
                 binding.resultTitle.text = "YOU BEAT ${opponent.uppercase()}!"
                 binding.resultSubtitle.text = if (match.outcome(role.other) == Outcome.ESCAPED && theirTime != null && myTime != null) {
-                    "You: ${formatDuration(myTime)}  ·  $opponent: ${formatDuration(theirTime)}
-+${Difficulty.MULTIPLAYER_WIN_BONUS} race bonus points"
+                    "You: ${formatDuration(myTime)}  ·  $opponent: ${formatDuration(theirTime)}\n+${Difficulty.MULTIPLAYER_WIN_BONUS} race bonus points"
                 } else {
-                    "$opponent didn't make it.
-+${Difficulty.MULTIPLAYER_WIN_BONUS} race bonus points"
+                    "$opponent didn't make it.\n+${Difficulty.MULTIPLAYER_WIN_BONUS} race bonus points"
                 }
                 if (!raceBonusRecorded) {
                     raceBonusRecorded = true

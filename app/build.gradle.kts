@@ -79,6 +79,9 @@ dependencies {
     implementation("androidx.camera:camera-camera2:1.3.4")
     implementation("androidx.camera:camera-lifecycle:1.3.4")
     implementation("androidx.camera:camera-view:1.3.4")
+    // CameraX hands back Guava's ListenableFuture. It used to arrive transitively,
+    // but Firebase swaps it for an empty placeholder, so depend on Guava directly.
+    implementation("com.google.guava:guava:33.2.1-android")
 
     // Accounts, multiplayer matches and leaderboards
     implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
