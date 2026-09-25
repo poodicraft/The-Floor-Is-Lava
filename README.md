@@ -32,6 +32,22 @@ To build it yourself in Android Studio instead:
 - Copy it to any Android phone and tap to install (enable "Install from
   unknown sources" if prompted — normal for APKs installed outside the Play Store)
 
+## Main menu
+
+- Animated lava backdrop with rising embers
+- Big pulsing **PLAY** button
+- **Difficulty** picker, remembered between launches:
+
+  | Difficulty | Time | Safe zone distance | Safe zone size |
+  |------------|------|--------------------|----------------|
+  | Easy       | 3:00 | 15–30 m            | 8 m radius     |
+  | Normal     | 2:00 | 15–45 m            | 6 m radius     |
+  | Hard       | 1:15 | 30–70 m            | 5 m radius     |
+
+- **Your record**: wins, win rate, best streak and fastest escape on the
+  selected difficulty
+- **How to play** guide and a **vibration** on/off toggle
+
 ## Game rules implemented
 
 - Real OpenStreetMap map centered on your live GPS position, dark lava/ember
@@ -39,7 +55,9 @@ To build it yourself in Android Studio instead:
 - Tapping **START** searches for a safe-zone spot 15–45 meters away that is
   VERIFIED clear of buildings, water, roads, railways, fences, and private
   land — see below for exactly how
-- **2-minute countdown** per round
+- **Countdown** per round (length depends on difficulty); a red lava glow
+  creeps in from the screen edges as time runs out, and the final 10 seconds
+  pulse the timer with a vibration tick each second
 - Your live position is tracked continuously (high-accuracy GPS, ~700ms
   updates) and shown as a marker with a **compass-direction arrow** that
   rotates to match which way you're physically facing
@@ -50,8 +68,10 @@ To build it yourself in Android Studio instead:
   AR view (see below)
 - Stepping inside the ~12-meter-wide green circle before time runs out = **win**
 - Timer hits zero while you're still outside the zone = **lose**
-- Win/lose screens themed accordingly, with a **Play Again** button that
-  starts a fresh round
+- Win/lose screens themed accordingly, showing your escape time (and
+  whether it's a new best), win streak, or how close you got, with **Play
+  Again** and **Main Menu** buttons
+- ✕ button / back gesture returns to the menu, asking first if a round is live
 
 ## AR camera direction view
 

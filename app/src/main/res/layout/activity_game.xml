@@ -13,6 +13,18 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent" />
 
+    <!-- Lava glow that creeps in from the edges as time runs out -->
+    <View
+        android:id="@+id/lavaVignette"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0"
+        android:background="@drawable/bg_lava_vignette"
+        android:clickable="false"
+        android:focusable="false"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
     <!-- Top gradient scrim for status bar readability -->
     <View
         android:layout_width="match_parent"
@@ -30,10 +42,43 @@
         android:textStyle="bold"
         android:textSize="20sp"
         android:letterSpacing="0.04"
-        android:layout_marginTop="20dp"
+        android:layout_marginTop="24dp"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Back to main menu -->
+    <ImageButton
+        android:id="@+id/menuButton"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginStart="16dp"
+        android:background="@drawable/bg_recenter_button"
+        android:contentDescription="Back to main menu"
+        android:padding="9dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_close"
+        app:layout_constraintBottom_toBottomOf="@id/gameTitle"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@id/gameTitle" />
+
+    <!-- Difficulty chip, top-right -->
+    <TextView
+        android:id="@+id/difficultyChip"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="16dp"
+        android:background="@drawable/bg_mode_pill_selected"
+        android:paddingStart="10dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="10dp"
+        android:paddingBottom="4dp"
+        android:textColor="@color/lava_black"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toBottomOf="@id/gameTitle"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@id/gameTitle" />
 
     <!-- Timer pill, centered top -->
     <TextView
@@ -156,6 +201,8 @@
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:background="@color/overlay_dark"
+        android:clickable="true"
+        android:focusable="true"
         android:visibility="gone"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -199,7 +246,18 @@
                 android:gravity="center"
                 android:layout_marginTop="6dp" />
 
-            <Button
+            <TextView
+                android:id="@+id/resultStats"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:gravity="center"
+                android:lineSpacingExtra="4dp"
+                android:textColor="@color/lava_gold"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <androidx.appcompat.widget.AppCompatButton
                 android:id="@+id/playAgainButton"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
@@ -207,9 +265,17 @@
                 android:text="@string/play_again"
                 android:textColor="@color/lava_black"
                 android:textStyle="bold"
-                android:background="@drawable/bg_play_again_button"
-                android:insetTop="0dp"
-                android:insetBottom="0dp" />
+                android:background="@drawable/bg_play_again_button" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/resultMenuButton"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="10dp"
+                android:text="@string/back_to_menu"
+                android:textColor="@color/text_primary"
+                android:textStyle="bold"
+                android:background="@drawable/bg_pill_outline" />
         </LinearLayout>
     </FrameLayout>
 

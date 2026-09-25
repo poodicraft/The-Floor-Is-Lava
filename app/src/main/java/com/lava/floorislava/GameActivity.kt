@@ -13,13 +13,18 @@ import android.hardware.SensorManager
 import android.os.Bundle
 import android.os.CountDownTimer
 import android.os.Looper
+import android.os.SystemClock
 import android.preference.PreferenceManager
 import android.view.View
+import android.view.animation.DecelerateInterpolator
 import android.view.animation.LinearInterpolator
+import android.view.animation.OvershootInterpolator
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.gms.location.*
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.lava.floorislava.databinding.ActivityGameBinding
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -40,11 +45,12 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
     private lateinit var sensorManager: SensorManager
     private var rotationSensor: Sensor? = null
 
-    // Game constants
-    private val gameDurationMs = 120_000L // 2 minutes
-    private val safeZoneMinRadiusM = 15.0
-    private val safeZoneMaxRadiusM = 45.0
-    private val safeZoneRadiusM = 6.0 // physical size of the safe circle on the ground
+    // Round settings come from the difficulty picked in the main menu
+    private lateinit var difficulty: Difficulty
+    private val gameDurationMs get() = difficulty.durationMs
+    private val safeZoneMinRadiusM get() = difficulty.minDistanceM
+    private val safeZoneMaxRadiusM get() = difficulty.maxDistanceM
+    private val safeZoneRadiusM get() = difficulty.zoneRadiusM // physical size of the safe circle on the ground
     private val maxSafeZoneAttempts = 15 // verified point-in-polygon checks before giving up
 
     // Game state
@@ -60,6 +66,9 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
     private var currentHeading = 0f
     private var markerAnimator: ValueAnimator? = null
     private var displayedMarkerPosition: GeoPoint? = null
+    private var roundStartedAt = 0L
+    private var closestDistanceM = Double.MAX_VALUE
+    private var lastTickSecond = -1
 
     private lateinit var locationCallback: LocationCallback
 
@@ -74,6 +83,10 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
         super.onCreate(savedInstanceState)
         binding = ActivityGameBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        difficulty = GamePrefs.difficulty(this)
+        binding.difficultyChip.text = difficulty.label
+        binding.timerText.text = formatDuration(gameDurationMs)
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
@@ -103,6 +116,12 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
         binding.playAgainButton.setOnClickListener {
             resetForNewRound()
         }
+
+        binding.resultMenuButton.setOnClickListener { finish() }
+        binding.menuButton.setOnClickListener { leaveToMenu() }
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() = leaveToMenu()
+        })
 
         setupLocationCallback()
 
@@ -268,6 +287,20 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
         }
     }
 
+    /** Back button / ✕ button: ask before abandoning a live round. */
+    private fun leaveToMenu() {
+        if (!gameActive) {
+            finish()
+            return
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.quit_title)
+            .setMessage(R.string.quit_message)
+            .setPositiveButton(R.string.quit_confirm) { _, _ -> finish() }
+            .setNegativeButton(R.string.quit_cancel, null)
+            .show()
+    }
+
     private fun openArView() {
         val safe = safeZoneCenter ?: return
         val intent = Intent(this, ArActivity::class.java).apply {
@@ -293,6 +326,10 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
 
         safeZoneCenter = safePoint
         drawSafeZone(safePoint, safeZoneRadiusM)
+        roundStartedAt = SystemClock.elapsedRealtime()
+        closestDistanceM = Double.MAX_VALUE
+        lastTickSecond = -1
+        Haptics.roundStart(this)
 
         // Zoom to fit both player and safe zone
         val box = org.osmdroid.util.BoundingBox(
@@ -307,14 +344,23 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
         countDownTimer = object : CountDownTimer(gameDurationMs, 250L) {
             override fun onTick(millisUntilFinished: Long) {
                 val seconds = Math.ceil(millisUntilFinished / 1000.0).toInt()
-                val mm = seconds / 60
-                val ss = seconds % 60
-                binding.timerText.text = String.format("%02d:%02d", mm, ss)
+                binding.timerText.text = formatDuration(seconds * 1000L)
 
                 binding.timerText.setBackgroundResource(
                     if (millisUntilFinished <= 15_000L) R.drawable.bg_timer_pill_danger
                     else R.drawable.bg_timer_pill
                 )
+
+                // The lava glow creeps in from the screen edges as time runs out
+                val elapsedFraction = 1f - millisUntilFinished.toFloat() / gameDurationMs
+                binding.lavaVignette.alpha = (elapsedFraction * elapsedFraction * 0.85f).coerceIn(0f, 0.85f)
+
+                // Final 10 seconds: pulse the timer and buzz once per second
+                if (millisUntilFinished <= 10_000L && seconds != lastTickSecond) {
+                    lastTickSecond = seconds
+                    pulseTimer()
+                    Haptics.tick(this@GameActivity)
+                }
             }
 
             override fun onFinish() {
@@ -365,6 +411,7 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
         val safe = safeZoneCenter ?: return
         val distance = GeoUtils.distanceMeters(playerLoc, safe)
         val remaining = (distance - safeZoneRadiusM).coerceAtLeast(0.0)
+        closestDistanceM = minOf(closestDistanceM, remaining)
 
         binding.distanceText.text = if (distance <= safeZoneRadiusM) {
             "You're in the safe zone!"
@@ -377,25 +424,65 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
         }
     }
 
+    private fun pulseTimer() {
+        binding.timerText.animate().cancel()
+        binding.timerText.scaleX = 1.18f
+        binding.timerText.scaleY = 1.18f
+        binding.timerText.animate()
+            .scaleX(1f)
+            .scaleY(1f)
+            .setDuration(350L)
+            .setInterpolator(DecelerateInterpolator())
+            .start()
+    }
+
     private fun endRound(won: Boolean) {
         gameActive = false
         countDownTimer?.cancel()
         binding.arButton.visibility = View.INVISIBLE
 
-        binding.resultOverlay.visibility = View.VISIBLE
+        val elapsedMs = (SystemClock.elapsedRealtime() - roundStartedAt).coerceAtMost(gameDurationMs)
+        val newBest = GamePrefs.recordResult(this, difficulty, won, elapsedMs)
+        val stats = GamePrefs.stats(this)
+
         if (won) {
+            Haptics.win(this)
+            binding.lavaVignette.animate().alpha(0f).setDuration(400L).start()
             binding.resultPanel.setBackgroundResource(R.drawable.bg_win_panel)
             binding.resultIcon.text = "🟢"
             binding.resultTitle.text = getString(R.string.win_title)
             binding.resultTitle.setTextColor(ContextCompat.getColor(this, R.color.safe_green_glow))
             binding.resultSubtitle.text = "You made it before the lava rose."
+            binding.resultStats.text = buildString {
+                append("⏱ Escaped in ${formatDuration(elapsedMs)}")
+                if (newBest) append("  ·  NEW BEST!")
+                append("\n🔥 Win streak: ${stats.streak}")
+            }
         } else {
+            Haptics.lose(this)
+            binding.lavaVignette.animate().alpha(1f).setDuration(400L).start()
             binding.resultPanel.setBackgroundResource(R.drawable.bg_lose_panel)
             binding.resultIcon.text = "🌋"
             binding.resultTitle.text = getString(R.string.lose_title)
             binding.resultTitle.setTextColor(ContextCompat.getColor(this, R.color.lava_orange_bright))
             binding.resultSubtitle.text = "Time ran out before you reached safety."
+            binding.resultStats.text =
+                if (closestDistanceM == Double.MAX_VALUE) "Streak lost — try again!"
+                else String.format("So close! You got within %.0f m", closestDistanceM)
         }
+
+        // Fade the overlay in and pop the panel up
+        binding.resultOverlay.alpha = 0f
+        binding.resultOverlay.visibility = View.VISIBLE
+        binding.resultOverlay.animate().alpha(1f).setDuration(300L).start()
+        binding.resultPanel.scaleX = 0.8f
+        binding.resultPanel.scaleY = 0.8f
+        binding.resultPanel.animate()
+            .scaleX(1f)
+            .scaleY(1f)
+            .setDuration(450L)
+            .setInterpolator(OvershootInterpolator(1.6f))
+            .start()
     }
 
     private fun resetForNewRound() {
@@ -409,6 +496,9 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
         binding.distanceText.visibility = View.INVISIBLE
         binding.arButton.visibility = View.INVISIBLE
         binding.timerText.setBackgroundResource(R.drawable.bg_timer_pill)
+        binding.timerText.text = formatDuration(gameDurationMs)
+        binding.lavaVignette.animate().cancel()
+        binding.lavaVignette.alpha = 0f
         binding.statusText.text = "Tap START to place a new safe zone"
 
         safeZoneCircle?.let { map.overlays.remove(it) }

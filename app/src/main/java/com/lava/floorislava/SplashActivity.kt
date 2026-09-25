@@ -50,7 +50,12 @@ class SplashActivity : AppCompatActivity() {
 
     private fun launchGame() {
         binding.loadingSpinner.visibility = android.view.View.VISIBLE
-        startActivity(Intent(this, GameActivity::class.java))
+        // CLEAR_TOP reuses the menu if we were sent here from it (permission
+        // revoked while the app was open) instead of stacking a second copy.
+        startActivity(
+            Intent(this, MainMenuActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        )
         finish()
     }
 }

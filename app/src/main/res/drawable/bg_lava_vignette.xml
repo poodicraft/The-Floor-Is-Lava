@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Red glow creeping in from the screen edges as the timer runs down -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:type="radial"
+        android:gradientRadius="75%p"
+        android:startColor="#00000000"
+        android:centerColor="#22E8360C"
+        android:endColor="#DDE8360C" />
+</shape>

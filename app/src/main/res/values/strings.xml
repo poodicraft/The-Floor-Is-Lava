@@ -5,7 +5,29 @@
     <string name="win_title">YOU SURVIVED!</string>
     <string name="lose_title">SWALLOWED BY LAVA</string>
     <string name="play_again">PLAY AGAIN</string>
+    <string name="back_to_menu">MAIN MENU</string>
     <string name="finding_location">Locating you…</string>
     <string name="location_permission_rationale">Floor Is Lava needs your precise location to place the safe zone and detect when you reach it.</string>
     <string name="grant_permission">Grant Location Access</string>
+
+    <string name="menu_tagline">REAL LIFE EDITION</string>
+    <string name="menu_play">PLAY</string>
+    <string name="menu_difficulty">DIFFICULTY</string>
+    <string name="menu_record">YOUR RECORD</string>
+    <string name="menu_how_to_play">❓ HOW TO PLAY</string>
+    <string name="menu_haptics_on">📳 VIBRATION ON</string>
+    <string name="menu_haptics_off">📴 VIBRATION OFF</string>
+    <string name="stat_wins">Wins</string>
+    <string name="stat_win_rate">Win rate</string>
+    <string name="stat_best_streak">Best streak</string>
+    <string name="stat_fastest">Fastest</string>
+
+    <string name="how_to_play_title">How to play</string>
+    <string name="how_to_play_body">🌋  The floor is lava — for real.\n\n1. Head outside somewhere open and safe, then tap PLAY.\n\n2. Tap START. A green safe zone appears on the map, somewhere nearby that has been checked to be clear of buildings, water, roads and fences.\n\n3. Walk to the safe zone before the timer runs out. The lava creeps in from the edges of your screen as time runs down.\n\n4. Lost? Tap the 📷 camera button for the AR view: point your phone around and a floating marker shows exactly where the zone is.\n\n⚠️  Watch where you\'re going. Never run into traffic, private property, or anywhere unsafe — no win is worth it.</string>
+    <string name="how_to_play_ok">Got it</string>
+
+    <string name="quit_title">Quit this round?</string>
+    <string name="quit_message">The lava will win this one.</string>
+    <string name="quit_confirm">Quit</string>
+    <string name="quit_cancel">Keep playing</string>
 </resources>
