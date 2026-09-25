@@ -16,7 +16,7 @@
     <!-- Top gradient scrim for status bar readability -->
     <View
         android:layout_width="match_parent"
-        android:layout_height="140dp"
+        android:layout_height="150dp"
         android:background="@drawable/scrim_top"
         app:layout_constraintTop_toTopOf="parent" />
 
@@ -40,15 +40,15 @@
         android:id="@+id/timerText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="00:30"
+        android:text="02:00"
         android:textColor="@color/text_primary"
         android:textStyle="bold"
         android:textSize="26sp"
         android:fontFamily="monospace"
         android:background="@drawable/bg_timer_pill"
-        android:layout_marginTop="56dp"
+        android:layout_marginTop="14dp"
         android:visibility="invisible"
-        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/gameTitle"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
@@ -72,7 +72,8 @@
         android:layout_height="wrap_content"
         android:textColor="@color/lava_yellow"
         android:textStyle="bold"
-        android:textSize="16sp"
+        android:textSize="20sp"
+        android:background="@drawable/bg_distance_pill"
         android:visibility="invisible"
         app:layout_constraintBottom_toTopOf="@id/startButton"
         app:layout_constraintStart_toStartOf="parent"
@@ -108,6 +109,14 @@
             android:textStyle="bold"
             android:textSize="18sp"
             android:letterSpacing="0.05" />
+
+        <ProgressBar
+            android:id="@+id/startButtonSpinner"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_gravity="center"
+            android:indeterminateTint="@color/lava_black"
+            android:visibility="gone" />
     </FrameLayout>
 
     <!-- Recenter / my-location button -->
@@ -124,6 +133,22 @@
         app:layout_constraintBottom_toBottomOf="@id/startButton"
         app:layout_constraintTop_toTopOf="@id/startButton"
         app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- AR camera direction view button -->
+    <ImageButton
+        android:id="@+id/arButton"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginBottom="40dp"
+        android:background="@drawable/bg_recenter_button"
+        android:src="@drawable/ic_camera"
+        android:contentDescription="Open AR direction view"
+        android:padding="12dp"
+        android:visibility="invisible"
+        app:layout_constraintBottom_toBottomOf="@id/startButton"
+        app:layout_constraintTop_toTopOf="@id/startButton"
+        app:layout_constraintStart_toStartOf="parent" />
 
     <!-- Result overlay (win/lose) -->
     <FrameLayout

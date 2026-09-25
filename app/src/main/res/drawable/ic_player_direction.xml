@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- outer glow -->
+    <path
+        android:pathData="M24,24 m-20,0 a20,20 0 1,0 40,0 a20,20 0 1,0 -40,0"
+        android:fillColor="#33FF6B1A" />
+    <!-- direction cone (points up = north/0deg; rotated at runtime to match heading) -->
+    <path
+        android:pathData="M24,4 L34,26 L24,20 L14,26 Z"
+        android:fillColor="@color/lava_gold" />
+    <!-- center dot -->
+    <path
+        android:pathData="M24,24 m-9,0 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0"
+        android:fillColor="@color/lava_orange_bright"
+        android:strokeColor="@color/text_primary"
+        android:strokeWidth="2.5" />
+</vector>
