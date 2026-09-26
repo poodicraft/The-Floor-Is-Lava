@@ -50,10 +50,8 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
     // Round settings come from the difficulty picked in the main menu
     private lateinit var difficulty: Difficulty
     private val gameDurationMs get() = difficulty.durationMs
-    private val safeZoneMinRadiusM get() = difficulty.minDistanceM
     private val safeZoneMaxRadiusM get() = difficulty.maxDistanceM
     private val safeZoneRadiusM get() = difficulty.zoneRadiusM // physical size of the safe circle on the ground
-    private val maxSafeZoneAttempts = 15 // verified point-in-polygon checks before giving up
 
     // Game state
     private var currentLocation: GeoPoint? = null
@@ -262,7 +260,7 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
 
     // --- Round start / verified safe zone search ---
 
-    private fun startRound() {
+    private fun startRound(checkMap: Boolean = true) {
         val playerPos = currentLocation
         if (playerPos == null) {
             binding.statusText.text = "Still finding your GPS location…"
@@ -271,44 +269,49 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
 
         gameActive = true
         setSearchingUi(true)
-        binding.statusText.text = "Finding a reachable safe zone…"
+        binding.statusText.text =
+            if (checkMap) "Scanning the area for buildings, water and roads…" else "Placing the safe zone…"
 
         safeZoneSearchJob?.cancel()
         safeZoneSearchJob = lifecycleScope.launch {
-            var chosenPoint: GeoPoint? = null
+            // One map request covers the whole area; the candidate spots are
+            // then checked on the phone. Only spots actually verified clear
+            // are used, unless the player chose to play unchecked.
+            val outcome = ZonePlanner.planSingle(playerPos, difficulty, checkMap)
+            if (!gameActive) return@launch // round was reset/cancelled mid-search
 
-            for (attempt in 1..maxSafeZoneAttempts) {
-                if (!gameActive) return@launch // round was reset/cancelled mid-search
-
-                val candidate = GeoUtils.randomPointNear(
-                    playerPos, safeZoneMinRadiusM, safeZoneMaxRadiusM
-                )
-                // isPointClear only returns true when it was ACTUALLY VERIFIED
-                // clear against real building/water shapes. A failed/timed-out
-                // check counts as "no" here too — we never use an unverified point.
-                val verifiedClear = OverpassChecker.isPointClear(candidate)
-                if (verifiedClear) {
-                    chosenPoint = candidate
-                    break
+            when (outcome) {
+                is PlanOutcome.Planned -> {
+                    beginCountdown(playerPos, outcome.plan.hostZone)
+                    if (!checkMap) {
+                        binding.statusText.text = "⚠️ Unchecked zone — make sure the way there is safe!"
+                    }
+                }
+                PlanOutcome.MapUnavailable -> {
+                    gameActive = false
+                    setSearchingUi(false)
+                    binding.statusText.text = "Couldn't reach the map servers"
+                    showMapUnavailableDialog()
+                }
+                PlanOutcome.NoOpenSpace -> {
+                    gameActive = false
+                    setSearchingUi(false)
+                    binding.statusText.text =
+                        "Everything within ${safeZoneMaxRadiusM.toInt()} m is buildings, water or roads — " +
+                            "move somewhere more open (a park or square) and try again"
                 }
             }
-
-            if (!gameActive) return@launch
-
-            val safePoint = chosenPoint
-            if (safePoint == null) {
-                // Every attempt was either blocked or couldn't be verified.
-                // Don't guess — tell the player and let them retry rather
-                // than risk dropping the zone somewhere unchecked.
-                gameActive = false
-                setSearchingUi(false)
-                binding.statusText.text =
-                    "Couldn't find a verified clear spot nearby — check your connection and try again"
-                return@launch
-            }
-
-            beginCountdown(playerPos, safePoint)
         }
+    }
+
+    private fun showMapUnavailableDialog() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.map_unavailable_title)
+            .setMessage(R.string.map_unavailable_body)
+            .setPositiveButton(R.string.map_unavailable_retry) { _, _ -> startRound() }
+            .setNegativeButton(R.string.map_unavailable_unchecked) { _, _ -> startRound(checkMap = false) }
+            .setNeutralButton(R.string.quit_cancel_short, null)
+            .show()
     }
 
     /** Back button / ✕ button: ask before abandoning a live round. */
@@ -565,11 +568,11 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
     private fun startRaceCountdown(match: Match, role: Role, zone: GeoPoint) {
         val opponent = match.nameOf(role.other)
         val distance = match.targetDistanceM.toInt()
-        binding.statusText.text = if (match.sameSpot) {
+        binding.statusText.text = (if (match.sameSpot) {
             "Same safe zone as $opponent — $distance m from each of you"
         } else {
             "Your own safe zone, $distance m away — same distance as $opponent's"
-        }
+        }) + if (match.mapChecked) "" else "\n⚠️ Unchecked zone — make sure the way there is safe!"
         lifecycleScope.launch {
             for (n in 3 downTo 1) {
                 binding.startButtonText.text = n.toString()
@@ -579,7 +582,8 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
             }
             gameActive = true
             beginCountdown(currentLocation ?: zone, zone)
-            binding.statusText.text = "GO! Beat $opponent to the safe zone!"
+            binding.statusText.text = "GO! Beat $opponent to the safe zone!" +
+                if (match.mapChecked) "" else "\n⚠️ Unchecked zone — make sure the way there is safe!"
         }
     }
 

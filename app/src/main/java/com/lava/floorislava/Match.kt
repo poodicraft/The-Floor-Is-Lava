@@ -43,6 +43,7 @@ data class Match(
     val status: String,
     val sameSpot: Boolean,
     val targetDistanceM: Double,
+    val mapChecked: Boolean,
     val error: String?,
     private val doc: DocumentSnapshot
 ) {
@@ -113,6 +114,7 @@ data class Match(
                 status = doc.getString("status") ?: MatchStatus.WAITING,
                 sameSpot = doc.getBoolean("sameSpot") ?: false,
                 targetDistanceM = doc.getDouble("targetDistanceM") ?: 0.0,
+                mapChecked = doc.getBoolean("mapChecked") ?: true,
                 error = doc.getString("error"),
                 doc = doc
             )
@@ -209,6 +211,7 @@ object Matches {
             mapOf(
                 "sameSpot" to plan.sameSpot,
                 "targetDistanceM" to plan.distanceM,
+                "mapChecked" to plan.mapChecked,
                 "hostZoneLat" to plan.hostZone.latitude,
                 "hostZoneLng" to plan.hostZone.longitude,
                 "guestZoneLat" to plan.guestZone.latitude,

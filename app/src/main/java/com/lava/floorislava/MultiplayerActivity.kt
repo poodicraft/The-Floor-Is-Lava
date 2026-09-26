@@ -19,6 +19,7 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.firebase.firestore.ListenerRegistration
 import com.lava.floorislava.databinding.ActivityMultiplayerBinding
 import kotlinx.coroutines.launch
@@ -304,7 +305,7 @@ class MultiplayerActivity : AppCompatActivity() {
     private fun formatDistance(meters: Double): String =
         if (meters < 1000) "${meters.toInt()} m" else String.format(Locale.US, "%.1f km", meters / 1000)
 
-    private fun startRace() {
+    private fun startRace(checkMap: Boolean = true) {
         val match = latest ?: return
         val code = matchCode ?: return
         val hostPos = match.location(Role.HOST) ?: return
@@ -312,19 +313,31 @@ class MultiplayerActivity : AppCompatActivity() {
         Matches.setStatus(code, MatchStatus.PLANNING)
         lifecycleScope.launch {
             try {
-                val plan = ZonePlanner.plan(hostPos, guestPos, match.difficulty)
-                if (plan == null) {
-                    Matches.setStatus(
+                when (val outcome = ZonePlanner.plan(hostPos, guestPos, match.difficulty, checkMap)) {
+                    is PlanOutcome.Planned -> Matches.publishPlan(code, outcome.plan)
+                    PlanOutcome.MapUnavailable -> {
+                        Matches.setStatus(code, MatchStatus.LOBBY, "Couldn't reach the map servers to check the area.")
+                        showMapUnavailableDialog()
+                    }
+                    PlanOutcome.NoOpenSpace -> Matches.setStatus(
                         code, MatchStatus.LOBBY,
-                        "Couldn't find verified-clear safe zones nearby. Check your internet and try again."
+                        "No open ground found near one of you — move somewhere more open (a park or square) and try again."
                     )
-                } else {
-                    Matches.publishPlan(code, plan)
                 }
             } catch (e: Exception) {
                 Matches.setStatus(code, MatchStatus.LOBBY, "Couldn't start the race: ${e.message}")
             }
         }
+    }
+
+    private fun showMapUnavailableDialog() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.map_unavailable_title)
+            .setMessage(R.string.map_unavailable_body)
+            .setPositiveButton(R.string.map_unavailable_retry) { _, _ -> startRace() }
+            .setNegativeButton(R.string.map_unavailable_unchecked) { _, _ -> startRace(checkMap = false) }
+            .setNeutralButton(R.string.quit_cancel_short, null)
+            .show()
     }
 
     private fun shareCode() {

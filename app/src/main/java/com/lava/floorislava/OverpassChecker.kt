@@ -1,117 +1,55 @@
 package com.lava.floorislava
 
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
+import org.json.JSONArray
 import org.json.JSONObject
 import org.osmdroid.util.GeoPoint
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.util.Locale
 
 /**
- * Uses OpenStreetMap's free Overpass API (no key required) to check candidate
- * points against real building/water polygon SHAPES — not just "is anything
- * nearby" — so a safe zone can never land inside a building's outline, even
- * for large buildings where the interior is far from any edge.
+ * The blocking OpenStreetMap features around one spot: buildings, water,
+ * construction sites and private areas as shapes you can't stand inside, and
+ * roads, railways, fences and walls as lines you must keep clear of.
  *
- * Safety-critical design choice: if the network call fails or times out, we
- * FAIL CLOSED — treat the point as blocked, not clear. A round that takes an
- * extra second to find a verified-clear point is fine; a safe zone that
- * silently lands in someone's living room because a request timed out is not.
- * Each check retries up to 3 times before the caller should just try a
- * different candidate point instead.
+ * Fetched ONCE per round by [OverpassChecker.scan]; any number of candidate
+ * safe-zone points can then be tested on the phone, instantly and offline.
  */
-object OverpassChecker {
+class AreaScan internal constructor(
+    private val areas: List<List<GeoPoint>>,
+    private val lines: List<List<GeoPoint>>
+) {
+    val featureCount: Int get() = areas.size + lines.size
 
-    private const val ENDPOINT = "https://overpass-api.de/api/interpreter"
-    private const val SEARCH_RADIUS_METERS = 40 // how far out to fetch shapes to test against
-    private const val ROAD_BUFFER_METERS = 8.0 // minimum distance to keep from roads/rails/fences
-    private const val TIMEOUT_MS = 7000L
-    private const val MAX_RETRIES = 3
-
-    /**
-     * Returns true ONLY if [point] was successfully verified as not inside any
-     * building or water polygon. Returns false if it's confirmed blocked, OR
-     * if verification failed after retries — callers should treat "false" as
-     * "don't use this point" either way, and try a different candidate.
-     */
-    suspend fun isPointClear(point: GeoPoint): Boolean {
-        repeat(MAX_RETRIES) {
-            val result = tryCheckPointClear(point)
-            if (result != null) return result
+    /** True when [point] is outside every blocking shape and far enough from every blocking line. */
+    fun isClear(point: GeoPoint): Boolean {
+        for (area in areas) {
+            if (area.size >= 3 && isPointInsidePolygon(point, area)) return false
         }
-        return false // fail CLOSED — couldn't verify, so don't risk it
+        for (line in lines) {
+            if (line.size >= 2 && distanceToPolyline(point, line) <= OverpassChecker.LINE_BUFFER_METERS) return false
+        }
+        return true
     }
 
-    private suspend fun tryCheckPointClear(point: GeoPoint): Boolean? {
-        return try {
-            withTimeout(TIMEOUT_MS) {
-                withContext(Dispatchers.IO) {
-                    queryBlockingShapes(point)
-                }
-            }
-        } catch (_: TimeoutCancellationException) {
-            null
-        } catch (_: Exception) {
-            null
+    /** Ray-casting point-in-polygon test. */
+    private fun isPointInsidePolygon(point: GeoPoint, polygon: List<GeoPoint>): Boolean {
+        var inside = false
+        var j = polygon.size - 1
+        for (i in polygon.indices) {
+            val xi = polygon[i].longitude
+            val yi = polygon[i].latitude
+            val xj = polygon[j].longitude
+            val yj = polygon[j].latitude
+            val intersects = ((yi > point.latitude) != (yj > point.latitude)) &&
+                (point.longitude < (xj - xi) * (point.latitude - yi) / (yj - yi) + xi)
+            if (intersects) inside = !inside
+            j = i
         }
-    }
-
-    /**
-     * Fetches building, water, road, railway, and restricted-land features
-     * within [SEARCH_RADIUS_METERS] of [point]. Area features (buildings,
-     * water, fenced/private land) are tested with real point-in-polygon
-     * geometry. Line features (roads, railways) use a proximity buffer
-     * instead, since standing 2 meters from a live traffic lane is just as
-     * unreachable/unsafe as standing on it, even though it's not literally
-     * "inside" a polygon.
-     */
-    private fun queryBlockingShapes(point: GeoPoint): Boolean {
-        val query = """
-            [out:json][timeout:6];
-            (
-              way["building"](around:$SEARCH_RADIUS_METERS,${point.latitude},${point.longitude});
-              relation["building"](around:$SEARCH_RADIUS_METERS,${point.latitude},${point.longitude});
-              way["natural"="water"](around:$SEARCH_RADIUS_METERS,${point.latitude},${point.longitude});
-              way["waterway"="riverbank"](around:$SEARCH_RADIUS_METERS,${point.latitude},${point.longitude});
-              way["landuse"="construction"](around:$SEARCH_RADIUS_METERS,${point.latitude},${point.longitude});
-              way["leisure"="swimming_pool"](around:$SEARCH_RADIUS_METERS,${point.latitude},${point.longitude});
-              way["barrier"="fence"](around:$ROAD_BUFFER_METERS,${point.latitude},${point.longitude});
-              way["barrier"="wall"](around:$ROAD_BUFFER_METERS,${point.latitude},${point.longitude});
-              way["access"~"private|no"](around:$ROAD_BUFFER_METERS,${point.latitude},${point.longitude});
-              way["highway"~"motorway|trunk|primary|secondary"](around:$ROAD_BUFFER_METERS,${point.latitude},${point.longitude});
-              way["railway"~"rail|light_rail|subway|tram"](around:$ROAD_BUFFER_METERS,${point.latitude},${point.longitude});
-            );
-            out geom;
-        """.trimIndent()
-
-        val elements = executeQuery(query) ?: return false // fail CLOSED on request failure
-
-        for (i in 0 until elements.length()) {
-            val element = elements.getJSONObject(i)
-            val polygon = extractPolygon(element) ?: continue
-            if (polygon.size < 2) continue
-
-            // Roads/railways/fences come back as lines, not closed shapes —
-            // for these, "inside" doesn't apply, so use distance-to-line
-            // instead of point-in-polygon.
-            val tags = element.optJSONObject("tags")
-            val isLineFeature = tags != null && (
-                tags.has("highway") || tags.has("railway") || tags.has("barrier") ||
-                (tags.has("access") && !tags.has("building"))
-            )
-
-            if (isLineFeature) {
-                if (distanceToPolyline(point, polygon) <= ROAD_BUFFER_METERS) {
-                    return false // blocked — too close to a road/rail/fence line
-                }
-            } else if (polygon.size >= 3 && isPointInsidePolygon(point, polygon)) {
-                return false // blocked — point is inside this area shape
-            }
-        }
-        return true // clear — not inside/near any blocking feature
+        return inside
     }
 
     /** Shortest distance in meters from [point] to any segment of [polyline]. */
@@ -124,7 +62,7 @@ object OverpassChecker {
         return minDistance
     }
 
-    /** Approximate distance in meters from a point to a line segment, using an equirectangular projection (fine at this small scale). */
+    /** Distance from a point to a segment, using an equirectangular projection (fine at this scale). */
     private fun distanceToSegment(p: GeoPoint, a: GeoPoint, b: GeoPoint): Double {
         val metersPerDegLat = 111_320.0
         val metersPerDegLng = 111_320.0 * kotlin.math.cos(Math.toRadians(p.latitude))
@@ -139,87 +77,165 @@ object OverpassChecker {
         val dx = bx - ax
         val dy = by - ay
         val lengthSquared = dx * dx + dy * dy
-
         val t = if (lengthSquared == 0.0) 0.0 else
             (((px - ax) * dx + (py - ay) * dy) / lengthSquared).coerceIn(0.0, 1.0)
 
-        val closestX = ax + t * dx
-        val closestY = ay + t * dy
-
-        val ddx = px - closestX
-        val ddy = py - closestY
+        val ddx = px - (ax + t * dx)
+        val ddy = py - (ay + t * dy)
         return kotlin.math.sqrt(ddx * ddx + ddy * ddy)
     }
+}
 
-    /** Extracts a way's outer ring as a list of GeoPoints from an Overpass "geometry" element. */
-    private fun extractPolygon(element: JSONObject): List<GeoPoint>? {
-        // Ways have "geometry" directly. Relations (multipolygons) have "members",
-        // each with its own "geometry" — use the first outer member as an approximation.
-        val directGeometry = element.optJSONArray("geometry")
-        val geometryArray = directGeometry ?: run {
-            val members = element.optJSONArray("members") ?: return null
-            var found: org.json.JSONArray? = null
-            for (m in 0 until members.length()) {
-                val member = members.getJSONObject(m)
-                if (member.optString("role") == "outer" || found == null) {
-                    member.optJSONArray("geometry")?.let { found = it }
-                }
-            }
-            found
-        } ?: return null
+/**
+ * Fetches blocking map features from OpenStreetMap's free Overpass API (no key
+ * required), so a safe zone never lands inside a building, in water, on a
+ * road or somewhere private.
+ *
+ * One request covers the whole area a round can use. The public Overpass
+ * servers are busy and rate-limit per IP address (mobile networks often share
+ * one address between many phones), so several independent servers are
+ * tried in turn, and the one that answered is tried first next time.
+ *
+ * A partial answer (the server ran out of time) is treated as a failure:
+ * a missing building must never read as "clear".
+ */
+object OverpassChecker {
 
-        val polygon = ArrayList<GeoPoint>()
-        for (j in 0 until geometryArray.length()) {
-            val node = geometryArray.optJSONObject(j) ?: continue
-            if (!node.has("lat") || !node.has("lon")) continue
-            polygon.add(GeoPoint(node.getDouble("lat"), node.getDouble("lon")))
+    /** How close a candidate may get to a road, railway, fence or wall. */
+    const val LINE_BUFFER_METERS = 8.0
+
+    private val ENDPOINTS = listOf(
+        "https://overpass-api.de/api/interpreter",
+        "https://overpass.private.coffee/api/interpreter",
+        "https://overpass.kumi.systems/api/interpreter",
+        "https://maps.mail.ru/osm/tools/overpass/api/interpreter"
+    )
+    private const val CONNECT_TIMEOUT_MS = 10_000
+    private const val READ_TIMEOUT_MS = 30_000
+    private const val SERVER_TIMEOUT_S = 25
+    private const val USER_AGENT = "FloorIsLava/1.2 (Android game; https://github.com/poodicraft/The-Floor-Is-Lava)"
+
+    @Volatile
+    private var preferredEndpoint = 0
+
+    /**
+     * Fetches everything that could block a safe zone within [radiusMeters]
+     * of [center]. Returns null only when no server could be reached or none
+     * gave a complete answer.
+     */
+    suspend fun scan(center: GeoPoint, radiusMeters: Double): AreaScan? = withContext(Dispatchers.IO) {
+        val query = buildQuery(center, radiusMeters)
+        for (attempt in ENDPOINTS.indices) {
+            val index = (preferredEndpoint + attempt) % ENDPOINTS.size
+            val elements = fetch(ENDPOINTS[index], query) ?: continue
+            preferredEndpoint = index
+            return@withContext parse(elements)
         }
-        return polygon
+        null
     }
 
-    private fun executeQuery(query: String): org.json.JSONArray? {
-        return try {
-            val url = URL(ENDPOINT)
-            val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "POST"
-            connection.doOutput = true
-            connection.connectTimeout = 6000
-            connection.readTimeout = 6000
-            connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+    private fun buildQuery(center: GeoPoint, radiusMeters: Double): String {
+        // Locale.US keeps the decimal point a "." on phones set to e.g. German.
+        val r = String.format(Locale.US, "%.0f", radiusMeters + LINE_BUFFER_METERS)
+        val at = String.format(Locale.US, "%.6f,%.6f", center.latitude, center.longitude)
+        val around = "(around:$r,$at)"
+        return """
+            [out:json][timeout:$SERVER_TIMEOUT_S];
+            (
+              way["building"]$around;
+              relation["building"]$around;
+              way["natural"="water"]$around;
+              relation["natural"="water"]$around;
+              way["waterway"="riverbank"]$around;
+              way["landuse"="construction"]$around;
+              way["leisure"="swimming_pool"]$around;
+              way["barrier"~"^(fence|wall)$"]$around;
+              way["access"~"^(private|no)$"]$around;
+              way["highway"~"^(motorway|trunk|primary|secondary)(_link)?$"]$around;
+              way["railway"~"^(rail|light_rail|subway|tram)$"]$around;
+            );
+            out geom qt;
+        """.trimIndent()
+    }
 
+    /** One POST to one server. Null on any failure, including a partial (timed-out) answer. */
+    private fun fetch(endpoint: String, query: String): JSONArray? {
+        var connection: HttpURLConnection? = null
+        return try {
+            connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                doOutput = true
+                connectTimeout = CONNECT_TIMEOUT_MS
+                readTimeout = READ_TIMEOUT_MS
+                setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+                setRequestProperty("User-Agent", USER_AGENT)
+                setRequestProperty("Accept", "application/json")
+            }
             val body = "data=" + URLEncoder.encode(query, "UTF-8")
             connection.outputStream.use { it.write(body.toByteArray()) }
 
-            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-                connection.disconnect()
-                return null
-            }
-
-            val responseText = connection.inputStream.bufferedReader().use { it.readText() }
-            connection.disconnect()
-
-            val json = JSONObject(responseText)
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) return null
+            val text = connection.inputStream.bufferedReader().use { it.readText() }
+            val json = JSONObject(text)
+            // Overpass reports running out of time or memory in "remark" while
+            // still answering 200 with whatever it found so far.
+            val remark = json.optString("remark", "")
+            if (remark.contains("error", ignoreCase = true)) return null
             json.optJSONArray("elements")
         } catch (_: Exception) {
             null
+        } finally {
+            connection?.disconnect()
         }
     }
 
-    /** Ray-casting point-in-polygon test. */
-    private fun isPointInsidePolygon(point: GeoPoint, polygon: List<GeoPoint>): Boolean {
-        var inside = false
-        var j = polygon.size - 1
-        for (i in polygon.indices) {
-            val xi = polygon[i].longitude
-            val yi = polygon[i].latitude
-            val xj = polygon[j].longitude
-            val yj = polygon[j].latitude
+    internal fun parse(elements: JSONArray): AreaScan {
+        val areas = ArrayList<List<GeoPoint>>()
+        val lines = ArrayList<List<GeoPoint>>()
 
-            val intersects = ((yi > point.latitude) != (yj > point.latitude)) &&
-                (point.longitude < (xj - xi) * (point.latitude - yi) / (yj - yi) + xi)
-            if (intersects) inside = !inside
-            j = i
+        for (i in 0 until elements.length()) {
+            val element = elements.optJSONObject(i) ?: continue
+            val tags = element.optJSONObject("tags") ?: JSONObject()
+            val isLineFeature = tags.has("highway") || tags.has("railway") || tags.has("barrier")
+
+            val direct = element.optJSONArray("geometry")
+            if (direct != null) {
+                val shape = toPoints(direct)
+                when {
+                    isLineFeature -> lines.add(shape)
+                    // An access-restricted way that isn't closed is a private road or path.
+                    tags.has("access") && !isClosed(shape) -> lines.add(shape)
+                    else -> areas.add(shape)
+                }
+                continue
+            }
+
+            // Relations (multipolygons): closed outer rings are areas; ring
+            // pieces that aren't closed on their own still count as edges.
+            val members = element.optJSONArray("members") ?: continue
+            for (m in 0 until members.length()) {
+                val member = members.optJSONObject(m) ?: continue
+                if (member.optString("role") == "inner") continue
+                val geometry = member.optJSONArray("geometry") ?: continue
+                val shape = toPoints(geometry)
+                if (isClosed(shape)) areas.add(shape) else lines.add(shape)
+            }
         }
-        return inside
+        return AreaScan(areas, lines)
     }
+
+    private fun toPoints(geometry: JSONArray): List<GeoPoint> {
+        val points = ArrayList<GeoPoint>(geometry.length())
+        for (j in 0 until geometry.length()) {
+            val node = geometry.optJSONObject(j) ?: continue
+            if (!node.has("lat") || !node.has("lon")) continue
+            points.add(GeoPoint(node.getDouble("lat"), node.getDouble("lon")))
+        }
+        return points
+    }
+
+    private fun isClosed(shape: List<GeoPoint>): Boolean =
+        shape.size >= 4 &&
+            shape.first().latitude == shape.last().latitude &&
+            shape.first().longitude == shape.last().longitude
 }

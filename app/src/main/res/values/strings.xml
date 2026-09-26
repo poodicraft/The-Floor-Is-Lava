@@ -49,4 +49,10 @@
     <string name="new_match">NEW MATCH</string>
     <string name="menu_multiplayer">⚔️ MULTIPLAYER</string>
     <string name="menu_leaderboards">🏆 LEADERBOARDS</string>
+
+    <string name="map_unavailable_title">Can\'t check the area</string>
+    <string name="map_unavailable_body">The free OpenStreetMap servers that check for buildings, water and roads didn\'t answer — they\'re sometimes overloaded, and some mobile networks get limited.\n\nTry again in a moment, or play with an unchecked safe zone. Then it\'s up to you to make sure it\'s somewhere safe to walk to.</string>
+    <string name="map_unavailable_retry">Try again</string>
+    <string name="map_unavailable_unchecked">Play unchecked</string>
+    <string name="quit_cancel_short">Cancel</string>
 </resources>
