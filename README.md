@@ -54,6 +54,11 @@ Without it the app still builds and single player works.
     soon as they're safe.
   - Every zone is checked against real buildings, water and roads, just
     like single player.
+- **Invite links:** *Send code to friend* shares a short message with a link
+  to a small invite page (`docs/join/`, served by GitHub Pages). Its **Join the
+  race** button opens the game and joins the match; without the game it leads
+  to the download. One-time setup: repository **Settings → Pages →** Source
+  *Deploy from a branch*, pick this branch and the **/docs** folder, **Save**.
 - **Leaderboards:** 🌍 Global (top 50), 👥 Friends (add by username, and
   anyone you race is added automatically), 📍 Area (players from the same
   city). Ranked by points: 50 / 100 / 200 per escape on Easy / Normal /

@@ -25,6 +25,8 @@ class SplashActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Opened from an invite link: keep the code for when the menu is reached.
+        Invites.capture(intent)
         binding = ActivitySplashBinding.inflate(layoutInflater)
         setContentView(binding.root)
 

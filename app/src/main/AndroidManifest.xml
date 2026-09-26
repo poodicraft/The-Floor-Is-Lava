@@ -30,6 +30,25 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- Match invites: the invite page's button opens floorislava://join/CODE -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="floorislava" android:host="join" />
+            </intent-filter>
+
+            <!-- The invite page link itself, where Android offers apps for it -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="poodicraft.github.io"
+                    android:pathPrefix="/The-Floor-Is-Lava/join" />
+            </intent-filter>
         </activity>
 
         <activity

@@ -86,6 +86,12 @@ class MultiplayerActivity : AppCompatActivity() {
             }
         }
         startLocationUpdates()
+
+        // Opened from an invite link: fill in the code and join right away.
+        intent.getStringExtra(EXTRA_JOIN_CODE)?.let { code ->
+            binding.joinCodeInput.setText(code)
+            joinMatch()
+        }
     }
 
     private fun hasLocationPermission() = ContextCompat.checkSelfPermission(
@@ -353,7 +359,7 @@ class MultiplayerActivity : AppCompatActivity() {
 
     private fun shareCode() {
         val code = matchCode ?: return
-        val text = "Race me in Floor Is Lava! 🌋 Open Multiplayer → Join a friend, and enter code: $code"
+        val text = "🌋 Race me in Floor Is Lava! Tap to join my match:\n${Invites.linkFor(code)}\n\n(or enter code $code under Multiplayer → Join)"
         val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
         startActivity(Intent.createChooser(send, "Send match code"))
     }
@@ -376,5 +382,9 @@ class MultiplayerActivity : AppCompatActivity() {
         if (::fusedLocationClient.isInitialized) {
             fusedLocationClient.removeLocationUpdates(locationCallback)
         }
+    }
+
+    companion object {
+        const val EXTRA_JOIN_CODE = "extra_join_code"
     }
 }

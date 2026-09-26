@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Join my Floor Is Lava race</title>
+  <meta name="description" content="You've been challenged to a Floor Is Lava race. Tap to join.">
+  <meta property="og:title" content="🌋 Race me in Floor Is Lava!">
+  <meta property="og:description" content="Tap to join my match — first one to the safe zone wins.">
+  <meta name="theme-color" content="#0A0503">
+  <style>
+    :root {
+      --bg: #0A0503;
+      --card: #1A0F0A;
+      --ember: #2B1108;
+      --orange: #FF6B1A;
+      --red: #E8360C;
+      --gold: #FFD166;
+      --text: #FFF3E8;
+      --muted: #D9A98C;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(ellipse at 50% 110%, #B01E02 0%, #2B1108 45%, var(--bg) 75%);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+    main {
+      width: 100%;
+      max-width: 420px;
+      text-align: center;
+    }
+    .volcano { font-size: 56px; line-height: 1; }
+    h1 {
+      margin: 8px 0 4px;
+      font-size: 34px;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      color: var(--gold);
+      text-shadow: 0 0 18px rgba(232, 54, 12, 0.8);
+    }
+    .lead { margin: 0 0 22px; color: var(--muted); font-size: 16px; }
+    .card {
+      background: rgba(26, 15, 10, 0.85);
+      border: 1.5px solid var(--ember);
+      border-radius: 22px;
+      padding: 22px 18px;
+    }
+    .label { font-size: 12px; font-weight: 700; letter-spacing: 0.2em; color: var(--muted); }
+    .code {
+      margin: 6px 0 18px;
+      font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+      font-size: 44px;
+      font-weight: 800;
+      letter-spacing: 0.3em;
+      color: var(--gold);
+      text-shadow: 0 0 14px rgba(232, 54, 12, 0.7);
+    }
+    .button {
+      display: block;
+      width: 100%;
+      padding: 17px 20px;
+      border: 0;
+      border-radius: 30px;
+      background: linear-gradient(90deg, var(--orange), var(--red));
+      color: #0A0503;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .secondary {
+      display: block;
+      width: 100%;
+      margin-top: 12px;
+      padding: 14px 20px;
+      border: 1.5px solid var(--orange);
+      border-radius: 30px;
+      background: transparent;
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .steps { margin: 18px 0 0; padding: 0; list-style: none; text-align: left; color: var(--muted); font-size: 14px; line-height: 1.5; }
+    .steps li { margin: 6px 0; }
+    .note { margin-top: 18px; font-size: 13px; color: var(--muted); }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="volcano" aria-hidden="true">🌋</div>
+    <h1>FLOOR IS LAVA</h1>
+    <p class="lead">You've been challenged to a race!<br>First one to the safe zone wins.</p>
+
+    <div class="card">
+      <div id="has-code">
+        <div class="label">MATCH CODE</div>
+        <div class="code" id="code">·····</div>
+        <a class="button" id="join" href="#">JOIN THE RACE</a>
+        <button class="secondary" id="copy" type="button">Copy code</button>
+        <a class="secondary" id="download"
+           href="https://github.com/poodicraft/The-Floor-Is-Lava/releases/tag/floor-is-lava-apk">Don't have the game? Get it</a>
+        <ul class="steps">
+          <li>1. Tap <b>JOIN THE RACE</b> — the game opens and joins the match.</li>
+          <li>2. First time? Sign in, then you're in the lobby.</li>
+          <li>3. Wait for both players to show 📍 ready — the host starts the race.</li>
+        </ul>
+      </div>
+      <div id="no-code" class="hidden">
+        <p>This invite link is missing its match code. Ask your friend to send it again, or enter the code in the game under <b>Multiplayer → Join</b>.</p>
+        <a class="button" href="https://github.com/poodicraft/The-Floor-Is-Lava/releases/tag/floor-is-lava-apk">Get the game</a>
+      </div>
+    </div>
+
+    <p class="note hidden" id="not-android">Floor Is Lava is an Android game — open this link on an Android phone.</p>
+  </main>
+
+  <script>
+    (function () {
+      var RELEASE = "https://github.com/poodicraft/The-Floor-Is-Lava/releases/tag/floor-is-lava-apk";
+      // Codes use A–Z and 2–9 without O, I, 0 or 1; anything else is dropped.
+      var raw = new URLSearchParams(window.location.search).get("c") || "";
+      var code = raw.toUpperCase().replace(/[^ABCDEFGHJKLMNPQRSTUVWXYZ23456789]/g, "").slice(0, 5);
+      var isAndroid = /Android/i.test(navigator.userAgent);
+
+      if (code.length !== 5) {
+        document.getElementById("has-code").classList.add("hidden");
+        document.getElementById("no-code").classList.remove("hidden");
+        return;
+      }
+
+      document.getElementById("code").textContent = code;
+      document.title = "Join race " + code + " — Floor Is Lava";
+
+      var join = document.getElementById("join");
+      if (isAndroid) {
+        // Opens the app; if it isn't installed, Chrome goes to the download page instead.
+        join.href = "intent://join/" + code +
+          "#Intent;scheme=floorislava;package=com.lava.floorislava;" +
+          "S.browser_fallback_url=" + encodeURIComponent(RELEASE) + ";end";
+      } else {
+        join.href = "floorislava://join/" + code;
+        document.getElementById("not-android").classList.remove("hidden");
+      }
+
+      var copy = document.getElementById("copy");
+      copy.addEventListener("click", function () {
+        var done = function () { copy.textContent = "Copied " + code + " ✓"; };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(code).then(done, function () { window.prompt("Copy the code:", code); });
+        } else {
+          window.prompt("Copy the code:", code);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

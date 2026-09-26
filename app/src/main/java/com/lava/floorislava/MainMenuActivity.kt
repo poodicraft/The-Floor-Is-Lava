@@ -54,6 +54,16 @@ class MainMenuActivity : AppCompatActivity() {
         updateHapticsButton()
         updateAccountChip()
         startPlayPulse()
+        openPendingInvite()
+    }
+
+    /** Came in through an invite link: go straight to the match. */
+    private fun openPendingInvite() {
+        if (Invites.pendingCode == null || !Cloud.isSignedIn(this)) return
+        val code = Invites.take() ?: return
+        startActivity(
+            Intent(this, MultiplayerActivity::class.java).putExtra(MultiplayerActivity.EXTRA_JOIN_CODE, code)
+        )
     }
 
     override fun onPause() {
