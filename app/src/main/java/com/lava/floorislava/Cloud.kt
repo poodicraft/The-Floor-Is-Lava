@@ -10,6 +10,7 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.firestore.Source
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -126,7 +127,9 @@ object Cloud {
     /** True when the signed-in player has no username yet (first Google sign-in). */
     suspend fun needsUsername(): Boolean {
         val me = uid ?: return false
-        return userDoc(me).get().await().getString("username") == null
+        // Ask the server: the local cache may hold only a partial profile
+        // (e.g. just the area), which would look like a missing username.
+        return userDoc(me).get(Source.SERVER).await().getString("username") == null
     }
 
     /** Gives the signed-in player [username] and a fresh profile. */
