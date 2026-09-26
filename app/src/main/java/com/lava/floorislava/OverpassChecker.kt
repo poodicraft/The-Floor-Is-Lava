@@ -21,25 +21,52 @@ import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * The blocking OpenStreetMap features around one spot: buildings, water,
- * construction sites and private areas as shapes you can't stand inside, and
- * roads, railways, fences and walls as lines you must keep clear of.
+ * construction sites, parking lots and private areas as shapes you can't
+ * stand inside, and roads, railways, fences and walls as lines you must keep
+ * clear of. Each line has its own keep-away distance ([Line.buffer]): roads
+ * are mapped as a centre line, so a wide road needs a bigger one.
  *
  * Fetched ONCE per round by [OverpassChecker.scan]; any number of candidate
  * safe-zone points can then be tested on the phone, instantly and offline.
  */
 class AreaScan internal constructor(
     private val areas: List<List<GeoPoint>>,
-    private val lines: List<List<GeoPoint>>
+    private val lines: List<Line>
 ) {
+    class Line(val points: List<GeoPoint>, val buffer: Double)
+
     val featureCount: Int get() = areas.size + lines.size
 
     /** True when [point] is outside every blocking shape and far enough from every blocking line. */
-    fun isClear(point: GeoPoint): Boolean {
-        for (area in areas) {
-            if (area.size >= 3 && isPointInsidePolygon(point, area)) return false
-        }
+    fun isClear(point: GeoPoint): Boolean = isZoneClear(point, 0.0)
+
+    /**
+     * True when the whole safe circle ([radiusM] around [center]) stays off
+     * every road/railway/fence buffer and doesn't overlap any blocked area.
+     */
+    fun isZoneClear(center: GeoPoint, radiusM: Double): Boolean =
+        isOffAllLines(center, radiusM) && isOutsideAllAreas(center, radiusM)
+
+    /**
+     * Like [isZoneClear], but the circle may brush against a building or
+     * other area as long as its centre is outside it. Roads still have to be
+     * completely clear.
+     */
+    fun isZoneOffRoads(center: GeoPoint, radiusM: Double): Boolean =
+        isOffAllLines(center, radiusM) && isOutsideAllAreas(center, 0.0)
+
+    private fun isOffAllLines(center: GeoPoint, radiusM: Double): Boolean {
         for (line in lines) {
-            if (line.size >= 2 && distanceToPolyline(point, line) <= OverpassChecker.LINE_BUFFER_METERS) return false
+            if (line.points.size >= 2 && distanceToPolyline(center, line.points) <= line.buffer + radiusM) return false
+        }
+        return true
+    }
+
+    private fun isOutsideAllAreas(center: GeoPoint, radiusM: Double): Boolean {
+        for (area in areas) {
+            if (area.size < 3) continue
+            if (isPointInsidePolygon(center, area)) return false
+            if (radiusM > 0 && distanceToPolyline(center, area) < radiusM) return false
         }
         return true
     }
@@ -114,8 +141,11 @@ class AreaScan internal constructor(
  */
 object OverpassChecker {
 
-    /** How close a candidate may get to a road, railway, fence or wall. */
-    const val LINE_BUFFER_METERS = 8.0
+    /** Extra distance kept from the edge of any road, railway, fence or wall. */
+    private const val SAFETY_MARGIN_METERS = 4.0
+
+    /** The largest keep-away distance any line gets; the query fetches this much further out. */
+    private const val MAX_LINE_BUFFER_METERS = 25.0
 
     private val ENDPOINTS = listOf(
         "https://overpass-api.de/api/interpreter",
@@ -245,7 +275,7 @@ object OverpassChecker {
 
     private fun buildQuery(center: GeoPoint, radiusMeters: Double): String {
         // Locale.US keeps the decimal point a "." on phones set to e.g. German.
-        val r = String.format(Locale.US, "%.0f", radiusMeters + LINE_BUFFER_METERS)
+        val r = String.format(Locale.US, "%.0f", radiusMeters + MAX_LINE_BUFFER_METERS)
         val at = String.format(Locale.US, "%.6f,%.6f", center.latitude, center.longitude)
         val around = "(around:$r,$at)"
         return """
@@ -260,7 +290,9 @@ object OverpassChecker {
               way["leisure"="swimming_pool"]$around;
               way["barrier"~"^(fence|wall)$"]$around;
               way["access"~"^(private|no)$"]$around;
-              way["highway"~"^(motorway|trunk|primary|secondary)(_link)?$"]$around;
+              way["highway"~"^(motorway|trunk|primary|secondary|tertiary)(_link)?$"]$around;
+              way["highway"~"^(unclassified|residential|living_street|service|road|busway|cycleway)$"]$around;
+              way["amenity"="parking"]$around;
               way["railway"~"^(rail|light_rail|subway|tram)$"]$around;
             );
             out geom qt;
@@ -300,20 +332,22 @@ object OverpassChecker {
 
     internal fun parse(elements: JSONArray): AreaScan {
         val areas = ArrayList<List<GeoPoint>>()
-        val lines = ArrayList<List<GeoPoint>>()
+        val lines = ArrayList<AreaScan.Line>()
 
         for (i in 0 until elements.length()) {
             val element = elements.optJSONObject(i) ?: continue
             val tags = element.optJSONObject("tags") ?: JSONObject()
-            val isLineFeature = tags.has("highway") || tags.has("railway") || tags.has("barrier")
+            val lineBuffer = lineBuffer(tags)
+            // Footpaths, pedestrian streets and the like are fine to stand on.
+            if (lineBuffer == null && tags.has("highway")) continue
 
             val direct = element.optJSONArray("geometry")
             if (direct != null) {
                 val shape = toPoints(direct)
                 when {
-                    isLineFeature -> lines.add(shape)
+                    lineBuffer != null -> lines.add(AreaScan.Line(shape, lineBuffer))
                     // An access-restricted way that isn't closed is a private road or path.
-                    tags.has("access") && !isClosed(shape) -> lines.add(shape)
+                    tags.has("access") && !isClosed(shape) -> lines.add(AreaScan.Line(shape, DEFAULT_LINE_BUFFER))
                     else -> areas.add(shape)
                 }
                 continue
@@ -327,11 +361,52 @@ object OverpassChecker {
                 if (member.optString("role") == "inner") continue
                 val geometry = member.optJSONArray("geometry") ?: continue
                 val shape = toPoints(geometry)
-                if (isClosed(shape)) areas.add(shape) else lines.add(shape)
+                if (isClosed(shape)) areas.add(shape) else lines.add(AreaScan.Line(shape, DEFAULT_LINE_BUFFER))
             }
         }
         return AreaScan(areas, lines)
     }
+
+    private const val DEFAULT_LINE_BUFFER = 4.0 + SAFETY_MARGIN_METERS
+    private val WALKABLE_HIGHWAYS = setOf(
+        "footway", "path", "pedestrian", "steps", "bridleway", "corridor", "track", "platform"
+    )
+    private const val LANE_WIDTH_METERS = 3.5
+
+    /**
+     * How far a safe zone must stay from this line's centre: half the road's
+     * width plus [SAFETY_MARGIN_METERS]. Uses the mapped `width` or `lanes`
+     * when present, else a typical width for the road type. Null when the
+     * feature isn't a line to keep away from (e.g. a building).
+     */
+    internal fun lineBuffer(tags: JSONObject): Double? {
+        val highway = tags.optString("highway", "")
+        if (highway in WALKABLE_HIGHWAYS) return null
+        if (highway.isNotEmpty()) {
+            val typicalHalfWidth = when (highway.removeSuffix("_link")) {
+                "motorway", "trunk" -> 12.0
+                "primary" -> 9.0
+                "secondary" -> 7.5
+                "tertiary" -> 6.0
+                "unclassified", "residential", "living_street", "road", "busway" -> 4.5
+                "service" -> 3.5
+                "cycleway" -> 2.0
+                else -> 4.0
+            }
+            val mappedHalfWidth = mappedWidth(tags)?.div(2)
+                ?: tags.optString("lanes", "").toDoubleOrNull()?.let { it * LANE_WIDTH_METERS / 2 }
+                ?: 0.0
+            val halfWidth = maxOf(typicalHalfWidth, mappedHalfWidth)
+            return minOf(halfWidth + SAFETY_MARGIN_METERS, MAX_LINE_BUFFER_METERS)
+        }
+        if (tags.has("railway")) return 3.0 + SAFETY_MARGIN_METERS
+        if (tags.has("barrier")) return 1.0 + SAFETY_MARGIN_METERS
+        return null
+    }
+
+    /** The `width` tag in metres ("7", "7.5", "7 m"), or null. */
+    private fun mappedWidth(tags: JSONObject): Double? =
+        tags.optString("width", "").trim().removeSuffix("m").trim().replace(',', '.').toDoubleOrNull()
 
     private fun toPoints(geometry: JSONArray): List<GeoPoint> {
         val points = ArrayList<GeoPoint>(geometry.length())

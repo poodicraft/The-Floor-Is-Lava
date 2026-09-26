@@ -52,21 +52,15 @@ object ZonePlanner {
         GeoUtils.distanceMeters(host, guest) <= SAME_PLACE_THRESHOLD_M
 
     /**
-     * The first candidate whose whole safe circle is clear, else the first
-     * whose centre is clear. With no [scan] (unchecked play) the first candidate.
+     * The first candidate whose whole safe circle is clear of everything, else
+     * the first whose circle is clear of every road (brushing a building wall
+     * is acceptable, standing on a road never is). With no [scan] (unchecked
+     * play) the first candidate.
      */
     fun pickClear(scan: AreaScan?, zoneRadiusM: Double, candidates: List<GeoPoint>): GeoPoint? {
         if (scan == null) return candidates.firstOrNull()
-        return candidates.firstOrNull { isCircleClear(scan, it, zoneRadiusM) }
-            ?: candidates.firstOrNull { scan.isClear(it) }
-    }
-
-    private fun isCircleClear(scan: AreaScan, center: GeoPoint, radiusM: Double): Boolean {
-        if (!scan.isClear(center)) return false
-        for (k in 0 until 8) {
-            if (!scan.isClear(GeoUtils.destination(center, radiusM, k * 45.0))) return false
-        }
-        return true
+        return candidates.firstOrNull { scan.isZoneClear(it, zoneRadiusM) }
+            ?: candidates.firstOrNull { scan.isZoneOffRoads(it, zoneRadiusM) }
     }
 
     /** Single player: a zone between the difficulty's min and max distance from [player]. */
