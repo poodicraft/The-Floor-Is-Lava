@@ -184,7 +184,10 @@ class MultiplayerActivity : AppCompatActivity() {
         binding.lobbyCode.text = code
         binding.shareCodeButton.visibility = if (role == Role.HOST) View.VISIBLE else View.GONE
         registration?.remove()
-        registration = Matches.listen(code) { onMatch(it) }
+        registration = Matches.listen(
+            code,
+            onError = { showError("Connection to the match lost: ${it.message}") }
+        ) { onMatch(it) }
         publishLocationIfNeeded(force = true)
     }
 
@@ -204,6 +207,7 @@ class MultiplayerActivity : AppCompatActivity() {
 
     private fun onMatch(match: Match?) {
         val role = myRole ?: return
+        binding.mpError.visibility = View.GONE
         if (match == null) {
             showError("This match no longer exists")
             resetToChoose()

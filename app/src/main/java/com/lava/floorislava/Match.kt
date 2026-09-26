@@ -3,7 +3,6 @@ package com.lava.floorislava
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.ListenerRegistration
-import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.tasks.await
 import org.osmdroid.util.GeoPoint
 import kotlin.random.Random
@@ -193,15 +192,37 @@ object Matches {
         }.await()
     }
 
-    fun listen(code: String, onChange: (Match?) -> Unit): ListenerRegistration =
-        doc(code).addSnapshotListener { snapshot, _ ->
-            onChange(snapshot?.let { Match.from(it) })
+    /**
+     * Follows the match. [onChange] gets null only when the server says the
+     * match doesn't exist. Snapshots that are just the phone's own
+     * not-yet-synced write (a document with our position but no host yet)
+     * are skipped; the full match follows a moment later.
+     */
+    fun listen(
+        code: String,
+        onError: (Exception) -> Unit = {},
+        onChange: (Match?) -> Unit
+    ): ListenerRegistration =
+        doc(code).addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                onError(error)
+                return@addSnapshotListener
+            }
+            if (snapshot == null) return@addSnapshotListener
+            if (!snapshot.exists()) {
+                // The local cache may simply not have the match yet.
+                if (!snapshot.metadata.isFromCache) onChange(null)
+                return@addSnapshotListener
+            }
+            val match = Match.from(snapshot) ?: return@addSnapshotListener
+            onChange(match)
         }
 
     fun publishLocation(code: String, role: Role, point: GeoPoint) {
-        doc(code).set(
-            mapOf("${role.prefix}Lat" to point.latitude, "${role.prefix}Lng" to point.longitude),
-            SetOptions.merge()
+        // update(), not set(merge): a merge on a match the phone hasn't loaded
+        // yet creates a local copy holding only these two fields.
+        doc(code).update(
+            mapOf("${role.prefix}Lat" to point.latitude, "${role.prefix}Lng" to point.longitude)
         )
     }
 
