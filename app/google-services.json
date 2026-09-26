@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "158334465516",
+    "project_id": "floor-is-lava-6984b",
+    "storage_bucket": "floor-is-lava-6984b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:158334465516:android:ac8082dcf1e72a664dfcc9",
+        "android_client_info": {
+          "package_name": "com.lava.floorislava"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCB1oE4XRRDDegTL1EGyKkNbei5mEVn1EE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
