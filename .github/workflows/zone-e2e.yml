@@ -34,6 +34,9 @@ jobs:
           }
           application { mainClass.set("MainKt") }
           G
+          mkdir -p src/main/kotlin/android/os
+          echo 'package android.os
+          object SystemClock { @JvmStatic fun elapsedRealtime(): Long = System.nanoTime() / 1_000_000 }' > src/main/kotlin/android/os/SystemClock.kt
           echo 'package org.osmdroid.util
           class GeoPoint(var latitude: Double, var longitude: Double) { override fun toString() = "(%.6f, %.6f)".format(latitude, longitude) }' > src/main/kotlin/org/osmdroid/util/GeoPoint.kt
           A=../app/src/main/java/com/lava/floorislava
@@ -57,6 +60,9 @@ jobs:
                   "New York, Midtown" to GeoPoint(40.7549, -73.9840)
               )
               for ((name, p) in places) {
+                  // Like the game screen: prefetch when GPS is known, then START shortly after.
+                  OverpassChecker.prefetch(p)
+                  kotlinx.coroutines.delay(2000)
                   for (d in listOf(Difficulty.NORMAL, Difficulty.HARD)) {
                       val t0 = System.currentTimeMillis()
                       val out = ZonePlanner.planSingle(p, d, checkMap = true)

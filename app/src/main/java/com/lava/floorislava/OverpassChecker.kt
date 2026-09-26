@@ -1,10 +1,14 @@
 package com.lava.floorislava
 
+import android.os.SystemClock
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 import org.osmdroid.util.GeoPoint
@@ -12,6 +16,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -98,9 +103,11 @@ class AreaScan internal constructor(
  * One request covers the whole area a round can use. The public Overpass
  * servers reject Android's default "Dalvik/..." User-Agent outright (406 from
  * overpass-api.de, 429 from the others), so requests name the app. They are
- * also busy (10–15 s answers, some time out), so two servers are asked at
- * once and the first complete answer wins; if both fail, the other two are
- * tried. The server that answered is asked first next time.
+ * also slow and flaky (3–50 s answers, some time out), so:
+ * - two servers are asked at once and the first complete answer wins; if
+ *   neither has answered after [HEDGE_AFTER_MS], the other two are asked too;
+ * - the game screen [prefetch]es the area as soon as GPS is known, and a scan
+ *   is reused while the player stays inside it, so START is usually instant.
  *
  * A partial answer (the server ran out of time) is treated as a failure:
  * a missing building must never read as "clear".
@@ -117,6 +124,14 @@ object OverpassChecker {
         "https://overpass.kumi.systems/api/interpreter"
     )
     private const val SERVERS_PER_WAVE = 2
+    private const val HEDGE_AFTER_MS = 12_000L
+
+    /**
+     * Prefetches cover this radius: enough for Hard (70 m + a 5 m zone) with
+     * ~35 m to spare, so the scan stays usable if the player walks a bit.
+     */
+    const val PREFETCH_RADIUS_METERS = 110.0
+    private const val CACHE_MAX_AGE_MS = 30 * 60 * 1000L
     private const val CONNECT_TIMEOUT_MS = 10_000
     private const val READ_TIMEOUT_MS = 30_000
     private const val SERVER_TIMEOUT_S = 25
@@ -128,31 +143,102 @@ object OverpassChecker {
     /** Requests run here so a slow loser can finish (or time out) without holding up the winner. */
     private val requestScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    /**
-     * Fetches everything that could block a safe zone within [radiusMeters]
-     * of [center]. Returns null only when no server could be reached or none
-     * gave a complete answer.
-     */
-    suspend fun scan(center: GeoPoint, radiusMeters: Double): AreaScan? {
-        val query = buildQuery(center, radiusMeters)
-        val order = ENDPOINTS.indices.map { (preferredEndpoint + it) % ENDPOINTS.size }
-        for (wave in order.chunked(SERVERS_PER_WAVE)) {
-            val elements = firstAnswer(wave, query) ?: continue
-            return parse(elements)
-        }
-        return null
+    private class Coverage(val center: GeoPoint, val radius: Double) {
+        fun covers(point: GeoPoint, radiusNeeded: Double): Boolean =
+            GeoUtils.distanceMeters(center, point) + radiusNeeded <= radius
     }
 
-    /** Asks every server in [indices] at once; the first complete answer wins, null if all fail. */
-    private suspend fun firstAnswer(indices: List<Int>, query: String): JSONArray? {
-        val winner = CompletableDeferred<JSONArray?>()
-        val pending = AtomicInteger(indices.size)
-        for (index in indices) {
-            requestScope.launch {
-                val elements = fetch(ENDPOINTS[index], query)
-                if (elements != null && winner.complete(elements)) preferredEndpoint = index
-                if (pending.decrementAndGet() == 0) winner.complete(null)
+    private class CachedScan(val coverage: Coverage, val scan: AreaScan, val fetchedAt: Long)
+    private class PendingScan(val coverage: Coverage, val result: Deferred<AreaScan?>)
+
+    // A few recent scans (e.g. host and guest areas in a multiplayer race).
+    private const val MAX_CACHED = 4
+    private val lock = Any()
+    private val cachedScans = ArrayList<CachedScan>()
+    private val pendingScans = ArrayList<PendingScan>()
+
+    private fun now() = SystemClock.elapsedRealtime()
+
+    private fun cachedCovering(center: GeoPoint, radius: Double): AreaScan? = synchronized(lock) {
+        val fresh = now() - CACHE_MAX_AGE_MS
+        cachedScans.removeAll { it.fetchedAt < fresh }
+        cachedScans.firstOrNull { it.coverage.covers(center, radius) }?.scan
+    }
+
+    private fun pendingCovering(center: GeoPoint, radius: Double): PendingScan? = synchronized(lock) {
+        pendingScans.firstOrNull { it.coverage.covers(center, radius) }
+    }
+
+    /**
+     * Starts fetching the area around [center] in the background, unless a
+     * fresh or in-flight scan already covers it. Safe to call on every GPS fix.
+     */
+    fun prefetch(center: GeoPoint) {
+        val needed = PREFETCH_RADIUS_METERS - 30.0
+        if (cachedCovering(center, needed) != null || pendingCovering(center, needed) != null) return
+        startScan(center, PREFETCH_RADIUS_METERS)
+    }
+
+    private fun startScan(center: GeoPoint, radius: Double): PendingScan {
+        val result = CompletableDeferred<AreaScan?>()
+        val scan = PendingScan(Coverage(center, radius), result)
+        synchronized(lock) { pendingScans.add(scan) }
+        requestScope.launch {
+            val elements = firstAnswer(buildQuery(center, radius))
+            val area = elements?.let { parse(it) }
+            synchronized(lock) {
+                pendingScans.remove(scan)
+                if (area != null) {
+                    cachedScans.add(0, CachedScan(scan.coverage, area, now()))
+                    while (cachedScans.size > MAX_CACHED) cachedScans.removeAt(cachedScans.size - 1)
+                }
             }
+            result.complete(area)
+        }
+        return scan
+    }
+
+    /**
+     * Fetches everything that could block a safe zone within [radiusMeters]
+     * of [center] — from a recent or in-flight scan when one covers it.
+     * Returns null only when no server could be reached or none gave a
+     * complete answer.
+     */
+    suspend fun scan(center: GeoPoint, radiusMeters: Double): AreaScan? {
+        cachedCovering(center, radiusMeters)?.let { return it }
+        // A prefetch that's already on its way is usually the quickest answer.
+        pendingCovering(center, radiusMeters)?.result?.await()?.let { return it }
+        return startScan(center, maxOf(radiusMeters, PREFETCH_RADIUS_METERS)).result.await()
+    }
+
+    /**
+     * Asks the servers in waves of [SERVERS_PER_WAVE]. The next wave starts
+     * when the current one has failed, or after [HEDGE_AFTER_MS] without an
+     * answer. The first complete answer wins; null when every server failed.
+     */
+    private suspend fun firstAnswer(query: String): JSONArray? {
+        val order = ENDPOINTS.indices.map { (preferredEndpoint + it) % ENDPOINTS.size }
+        val waves = order.chunked(SERVERS_PER_WAVE)
+        val winner = CompletableDeferred<JSONArray?>()
+        val outstanding = AtomicInteger(0)
+        val allLaunched = AtomicBoolean(false)
+
+        for ((waveIndex, wave) in waves.withIndex()) {
+            val isLast = waveIndex == waves.lastIndex
+            outstanding.addAndGet(wave.size)
+            if (isLast) allLaunched.set(true)
+            for (index in wave) {
+                requestScope.launch {
+                    val elements = fetch(ENDPOINTS[index], query)
+                    if (elements != null && winner.complete(elements)) preferredEndpoint = index
+                    if (outstanding.decrementAndGet() == 0 && allLaunched.get()) winner.complete(null)
+                }
+            }
+            if (isLast) break
+            withTimeoutOrNull(HEDGE_AFTER_MS) {
+                while (!winner.isCompleted && outstanding.get() > 0) delay(200L)
+            }
+            if (winner.isCompleted) break
         }
         return winner.await()
     }

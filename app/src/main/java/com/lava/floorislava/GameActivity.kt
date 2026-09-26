@@ -196,6 +196,9 @@ class GameActivity : AppCompatActivity(), SensorEventListener {
 
         if (gameActive) {
             checkWinCondition(point)
+        } else if (!isMatch) {
+            // Fetch the surrounding map data now, so START is usually instant.
+            OverpassChecker.prefetch(point)
         }
     }
 

@@ -254,6 +254,13 @@ class MultiplayerActivity : AppCompatActivity() {
 
         val hostPos = match.location(Role.HOST)
         val guestPos = match.location(Role.GUEST)
+        if (role == Role.HOST && match.status == MatchStatus.LOBBY) {
+            // The host picks the zones; fetch the map around both players ahead of START.
+            hostPos?.let { OverpassChecker.prefetch(it) }
+            if (hostPos != null && guestPos != null && !ZonePlanner.isSamePlace(hostPos, guestPos)) {
+                OverpassChecker.prefetch(guestPos)
+            }
+        }
         binding.placementText.text = if (hostPos != null && guestPos != null) {
             val apart = GeoUtils.distanceMeters(hostPos, guestPos)
             if (ZonePlanner.isSamePlace(hostPos, guestPos)) {
