@@ -12,7 +12,20 @@
           "package_name": "com.lava.floorislava"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "158334465516-9o51q7afbltfhv77eo475gt9rhkg587k.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.lava.floorislava",
+            "certificate_hash": "6ece4d810df52042cd3777120a57f0ffffa5446c"
+          }
+        },
+        {
+          "client_id": "158334465516-44h2h4o2q242qh67tdt6vfscc6katm91.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCB1oE4XRRDDegTL1EGyKkNbei5mEVn1EE"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "158334465516-44h2h4o2q242qh67tdt6vfscc6katm91.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
