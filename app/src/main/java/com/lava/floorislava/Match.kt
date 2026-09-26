@@ -173,7 +173,10 @@ object Matches {
         val ref = doc(code)
         Cloud.db.runTransaction { tx ->
             val snapshot = tx.get(ref)
-            if (!snapshot.exists()) throw MatchNotFoundException()
+            // A match the host already left reads as "not found", not as "full".
+            if (!snapshot.exists() || snapshot.getString("status") == MatchStatus.CANCELLED) {
+                throw MatchNotFoundException()
+            }
             val hostUid = snapshot.getString("hostUid")
             val guestUid = snapshot.getString("guestUid")
             val status = snapshot.getString("status")
