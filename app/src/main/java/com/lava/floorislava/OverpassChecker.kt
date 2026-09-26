@@ -1,7 +1,10 @@
 package com.lava.floorislava
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import org.osmdroid.util.GeoPoint
@@ -9,6 +12,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * The blocking OpenStreetMap features around one spot: buildings, water,
@@ -92,9 +96,11 @@ class AreaScan internal constructor(
  * road or somewhere private.
  *
  * One request covers the whole area a round can use. The public Overpass
- * servers are busy and rate-limit per IP address (mobile networks often share
- * one address between many phones), so several independent servers are
- * tried in turn, and the one that answered is tried first next time.
+ * servers reject Android's default "Dalvik/..." User-Agent outright (406 from
+ * overpass-api.de, 429 from the others), so requests name the app. They are
+ * also busy (10–15 s answers, some time out), so two servers are asked at
+ * once and the first complete answer wins; if both fail, the other two are
+ * tried. The server that answered is asked first next time.
  *
  * A partial answer (the server ran out of time) is treated as a failure:
  * a missing building must never read as "clear".
@@ -106,32 +112,49 @@ object OverpassChecker {
 
     private val ENDPOINTS = listOf(
         "https://overpass-api.de/api/interpreter",
+        "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
         "https://overpass.private.coffee/api/interpreter",
-        "https://overpass.kumi.systems/api/interpreter",
-        "https://maps.mail.ru/osm/tools/overpass/api/interpreter"
+        "https://overpass.kumi.systems/api/interpreter"
     )
+    private const val SERVERS_PER_WAVE = 2
     private const val CONNECT_TIMEOUT_MS = 10_000
     private const val READ_TIMEOUT_MS = 30_000
     private const val SERVER_TIMEOUT_S = 25
-    private const val USER_AGENT = "FloorIsLava/1.2 (Android game; https://github.com/poodicraft/The-Floor-Is-Lava)"
+    private const val USER_AGENT = "FloorIsLava/1.2 (Android game; github.com/poodicraft/The-Floor-Is-Lava)"
 
     @Volatile
     private var preferredEndpoint = 0
+
+    /** Requests run here so a slow loser can finish (or time out) without holding up the winner. */
+    private val requestScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /**
      * Fetches everything that could block a safe zone within [radiusMeters]
      * of [center]. Returns null only when no server could be reached or none
      * gave a complete answer.
      */
-    suspend fun scan(center: GeoPoint, radiusMeters: Double): AreaScan? = withContext(Dispatchers.IO) {
+    suspend fun scan(center: GeoPoint, radiusMeters: Double): AreaScan? {
         val query = buildQuery(center, radiusMeters)
-        for (attempt in ENDPOINTS.indices) {
-            val index = (preferredEndpoint + attempt) % ENDPOINTS.size
-            val elements = fetch(ENDPOINTS[index], query) ?: continue
-            preferredEndpoint = index
-            return@withContext parse(elements)
+        val order = ENDPOINTS.indices.map { (preferredEndpoint + it) % ENDPOINTS.size }
+        for (wave in order.chunked(SERVERS_PER_WAVE)) {
+            val elements = firstAnswer(wave, query) ?: continue
+            return parse(elements)
         }
-        null
+        return null
+    }
+
+    /** Asks every server in [indices] at once; the first complete answer wins, null if all fail. */
+    private suspend fun firstAnswer(indices: List<Int>, query: String): JSONArray? {
+        val winner = CompletableDeferred<JSONArray?>()
+        val pending = AtomicInteger(indices.size)
+        for (index in indices) {
+            requestScope.launch {
+                val elements = fetch(ENDPOINTS[index], query)
+                if (elements != null && winner.complete(elements)) preferredEndpoint = index
+                if (pending.decrementAndGet() == 0) winner.complete(null)
+            }
+        }
+        return winner.await()
     }
 
     private fun buildQuery(center: GeoPoint, radiusMeters: Double): String {
@@ -168,8 +191,8 @@ object OverpassChecker {
                 connectTimeout = CONNECT_TIMEOUT_MS
                 readTimeout = READ_TIMEOUT_MS
                 setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+                // Without this the servers answer 406/429 to Android's default "Dalvik/..." agent.
                 setRequestProperty("User-Agent", USER_AGENT)
-                setRequestProperty("Accept", "application/json")
             }
             val body = "data=" + URLEncoder.encode(query, "UTF-8")
             connection.outputStream.use { it.write(body.toByteArray()) }
