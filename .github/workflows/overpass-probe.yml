@@ -1,0 +1,56 @@
+# Temporary diagnostic: what do the Overpass servers answer to the app's query?
+name: Overpass probe
+
+on:
+  push:
+    branches:
+      - "claude/**"
+    paths:
+      - ".github/workflows/overpass-probe.yml"
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Query Overpass like the app does
+        run: |
+          LAT=32.0853; LNG=34.7818   # central Tel Aviv
+          Q=$(cat <<Q
+          [out:json][timeout:6];
+          (
+            way["building"](around:40,$LAT,$LNG);
+            relation["building"](around:40,$LAT,$LNG);
+            way["natural"="water"](around:40,$LAT,$LNG);
+            way["waterway"="riverbank"](around:40,$LAT,$LNG);
+            way["landuse"="construction"](around:40,$LAT,$LNG);
+            way["leisure"="swimming_pool"](around:40,$LAT,$LNG);
+            way["barrier"="fence"](around:8.0,$LAT,$LNG);
+            way["barrier"="wall"](around:8.0,$LAT,$LNG);
+            way["access"~"private|no"](around:8.0,$LAT,$LNG);
+            way["highway"~"motorway|trunk|primary|secondary"](around:8.0,$LAT,$LNG);
+            way["railway"~"rail|light_rail|subway|tram"](around:8.0,$LAT,$LNG);
+          );
+          out geom;
+          Q
+          )
+          BIG=$(cat <<Q
+          [out:json][timeout:25];
+          (
+            way["building"](around:130,$LAT,$LNG);
+            relation["building"](around:130,$LAT,$LNG);
+            way["highway"~"^(motorway|trunk|primary|secondary)(_link)?$"](around:130,$LAT,$LNG);
+          );
+          out geom qt;
+          Q
+          )
+          for EP in https://overpass-api.de/api/interpreter https://overpass.kumi.systems/api/interpreter https://overpass.private.coffee/api/interpreter https://maps.mail.ru/osm/tools/overpass/api/interpreter; do
+            for UA in "Dalvik/2.1.0 (Linux; U; Android 14; Pixel 7 Build/UQ1A)" "FloorIsLava/1.2 (Android game; github.com/poodicraft/The-Floor-Is-Lava)"; do
+              for NAME in app big; do
+                if [ $NAME = app ]; then BODY="$Q"; else BODY="$BIG"; fi
+                OUT=$(curl -sS -o /tmp/r.json -w '%{http_code} %{time_total}s %{size_download}B' --max-time 40 -A "$UA" --data-urlencode "data=$BODY" "$EP" 2>&1 | tail -1)
+                echo "RESULT $EP | $NAME | UA=${UA%% *} | $OUT | $(head -c 160 /tmp/r.json | tr '\n' ' ')"
+                sleep 2
+              done
+            done
+          done
