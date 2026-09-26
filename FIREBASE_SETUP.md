@@ -97,6 +97,30 @@ minutes later the new APK appears on the
 The file isn't a password. It only tells the app which Firebase project to
 use; the rules from step 4 decide who can do what.
 
+## Step 6 — Turn on "Continue with Google" (optional)
+
+Email accounts work without this. For the Google button:
+
+1. **Turn on the Google provider:** left menu → **Security** →
+   **Authentication** → **Sign-in method** tab → **Add new provider** →
+   **Google** → switch **Enable** on → pick your email under
+   **Project support email** → **Save**.
+2. **Add the app's fingerprint:** **⚙️ gear** next to Project Overview →
+   **Project settings** → **General** → scroll to **Your apps** → tap the
+   Floor Is Lava Android app → **Add fingerprint** → paste this and **Save**:
+
+   ```
+   6E:CE:4D:81:0D:F5:20:42:CD:37:77:12:0A:57:F0:FF:FF:A5:44:6C
+   ```
+
+   (It's the SHA-1 of `keystore/debug.keystore`, which signs every APK
+   this project builds.)
+3. **Download `google-services.json` again** from the same place (the old
+   one doesn't contain Google sign-in yet) and send it to Claude, or
+   upload it over `app/google-services.json` as in step 5.
+
+Until then the Google button says Google sign-in isn't switched on yet.
+
 ## Playing multiplayer
 
 1. You and your friend both install the new APK and **create an account**
@@ -121,3 +145,4 @@ use; the rules from step 4 decide who can do what.
 | Creating an account fails with a permission error | The rules weren't published — redo step 4. |
 | "No match with code …" | Check the code; the host must stay on the match screen until you join. |
 | START RACE stays grey | Both players need **📍 ready**. Go outside and wait a moment for GPS. |
+| "Google sign-in isn't switched on for this app yet" | Do all three parts of step 6, then send the new `google-services.json`. |

@@ -55,4 +55,10 @@
     <string name="map_unavailable_retry">Try again</string>
     <string name="map_unavailable_unchecked">Play unchecked</string>
     <string name="quit_cancel_short">Cancel</string>
+
+    <string name="auth_google_button">Continue with Google</string>
+    <string name="auth_or_email">or use email</string>
+    <string name="auth_choose_name">👋 Welcome! Pick a username — it\'s how other players see you on the leaderboards and in races.</string>
+    <string name="auth_continue_button">CONTINUE</string>
+    <string name="auth_google_not_set_up">Google sign-in isn\'t switched on for this app yet. Use email for now — or finish the Google steps in FIREBASE_SETUP.md.</string>
 </resources>

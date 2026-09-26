@@ -3,6 +3,7 @@ package com.lava.floorislava
 import android.content.Context
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FieldValue
@@ -93,12 +94,59 @@ object Cloud {
         val result = auth.createUserWithEmailAndPassword(email, password).await()
         val user = result.user ?: throw IllegalStateException("Sign up failed — please try again")
         try {
-            val nameRef = db.collection("usernames").document(username.lowercase())
+            createProfile(user.uid, username)
+        } catch (e: Exception) {
+            runCatching { user.delete().await() }
+            auth.signOut()
+            throw e
+        }
+    }
+
+    suspend fun signIn(email: String, password: String) {
+        auth.signInWithEmailAndPassword(email, password).await()
+    }
+
+    /**
+     * The OAuth web client id that Google sign-in needs. It is generated from
+     * google-services.json only once the Google provider is switched on in
+     * Firebase, so it is looked up by name instead of R.string to keep the
+     * app building without it. Null means Google sign-in isn't set up yet.
+     */
+    fun googleWebClientId(context: Context): String? {
+        val id = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
+        return if (id != 0) context.getString(id) else null
+    }
+
+    /** Signs in to Firebase with a Google ID token from Credential Manager. */
+    suspend fun signInWithGoogle(idToken: String) {
+        val credential = GoogleAuthProvider.getCredential(idToken, null)
+        auth.signInWithCredential(credential).await()
+    }
+
+    /** True when the signed-in player has no username yet (first Google sign-in). */
+    suspend fun needsUsername(): Boolean {
+        val me = uid ?: return false
+        return userDoc(me).get().await().getString("username") == null
+    }
+
+    /** Gives the signed-in player [username] and a fresh profile. */
+    suspend fun claimUsername(username: String) {
+        val me = uid ?: throw IllegalStateException("Not signed in")
+        createProfile(me, username)
+    }
+
+    /**
+     * Claims usernames/{name} and writes users/{uid} in one transaction, so
+     * two players can never end up with the same name.
+     */
+    private suspend fun createProfile(uid: String, username: String) {
+        val nameRef = db.collection("usernames").document(username.lowercase())
+        try {
             db.runTransaction { tx ->
                 if (tx.get(nameRef).exists()) throw UsernameTakenException()
-                tx.set(nameRef, mapOf("uid" to user.uid))
+                tx.set(nameRef, mapOf("uid" to uid))
                 tx.set(
-                    userDoc(user.uid),
+                    userDoc(uid),
                     mapOf(
                         "username" to username,
                         "usernameLower" to username.lowercase(),
@@ -114,15 +162,9 @@ object Cloud {
                 null
             }.await()
         } catch (e: Exception) {
-            runCatching { user.delete().await() }
-            auth.signOut()
             val taken = e is UsernameTakenException || e.cause is UsernameTakenException
             throw if (taken) UsernameTakenException() else e
         }
-    }
-
-    suspend fun signIn(email: String, password: String) {
-        auth.signInWithEmailAndPassword(email, password).await()
     }
 
     fun signOut() = auth.signOut()

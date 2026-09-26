@@ -117,6 +117,8 @@ class MainMenuActivity : AppCompatActivity() {
             .setPositiveButton("Close", null)
             .setNegativeButton("Sign out") { _, _ ->
                 Cloud.signOut()
+                val appContext = applicationContext
+                LavaApp.appScope.launch { GoogleSignIn.clear(appContext) }
                 startActivity(Intent(this, AuthActivity::class.java))
                 finish()
             }
