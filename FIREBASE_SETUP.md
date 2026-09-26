@@ -5,43 +5,50 @@ project must belong to you, so you create it once. It takes about 10
 minutes and works in your phone's browser.
 
 Open <https://console.firebase.google.com> and sign in with your Google account.
-
-> **Can't find a menu item?** Firebase moved things around. Use the
-> **search box at the top of the left menu** ("Search for products") and
-> type the name — *Authentication*, *Firestore*, *Settings*.
+These steps follow the Firebase console as of September 2026. On a phone,
+the left menu is behind the **☰** button at the top left.
 
 ## Step 1 — Create the project
 
-1. Tap **Create a project** (or **Get started with a Firebase project**).
-2. Name it `Floor Is Lava` → **Continue**.
-   Make a new project; don't reuse another app's project (like BookQuest).
-3. Turn **Google Analytics off** → **Create project** → **Continue**.
+1. On the welcome page ("Welcome to Firebase!"), tap the card
+   **Get started by setting up a Firebase project**.
+2. Name it `Floor Is Lava`. You can switch off "Join the Google Developer
+   Program". Tap **Continue**.
+3. The "Enable Gemini in Firebase" screen: switch it off (not needed) → **Continue**.
+4. Google Analytics: optional, it doesn't affect the game → **Create project** → **Continue**.
+
+You land on the **Project Overview** page.
 
 ## Step 2 — Add the app and download its file
 
-1. On the project page, tap the **Android** icon (or **Add app → Android**).
-2. **Android package name:** `com.lava.floorislava` — type it exactly.
-   Leave the other fields empty.
-3. Tap **Register app**.
-4. Tap **Download google-services.json** and keep the file.
-5. Tap **Next**, **Next**, **Continue to console** (skip the rest).
+1. Tap the **⚙️ gear** next to **Project Overview** (top of the left menu) →
+   **Project settings** → **General** tab.
+2. Scroll down to **Your apps** and tap the **Android** icon (the robot head).
+3. **Android package name:** `com.lava.floorislava` — type it exactly.
+   Leave the other two boxes empty.
+4. Tap **Register app**.
+5. Tap **Download google-services.json** and keep the file.
+6. Tap **Next**, **Next**, **Continue to console**.
 
-Lost the file? **Settings → General**, scroll to **Your apps**, and tap
-**google-services.json** to download it again.
+Lost the file? Same place: **⚙️ → Project settings → General → Your apps**,
+tap the app, then **google-services.json**.
 
 ## Step 3 — Turn on accounts
 
-1. Search **Authentication** → **Get started**.
-2. Under **Sign-in method**, tap **Email/Password**.
-3. Switch on the **first** switch (Email/Password). Leave "Email link" off.
+1. In the left menu, open **Security** → **Authentication** → **Get started**.
+2. On the **Sign-in method** tab, tap **Email/Password**.
+3. Turn on the **first** switch (Email/Password). Leave "Email link" off.
 4. **Save**.
 
 ## Step 4 — Create the database
 
-1. Search **Firestore** → **Create database**.
-2. Keep the default edition and pick any location near you → **Next**.
-3. Choose **Start in production mode** → **Create**.
-4. Open the **Rules** tab. Delete everything in the box and paste this:
+1. In the left menu, open **Databases & Storage** → under **NoSQL**, tap
+   **Firestore** → **Create database**.
+2. **Select edition:** choose **Standard** → **Next**.
+3. **Database ID & location:** keep the ID as it is and pick a location near
+   you (it can't be changed later) → **Next**.
+4. **Configure:** choose **Start in production mode** → **Create**.
+5. Open the **Rules** tab. Delete everything in the box and paste this:
 
 ```
 rules_version = '2';
@@ -70,7 +77,7 @@ service cloud.firestore {
 }
 ```
 
-5. Tap **Publish**.
+6. Tap **Publish**.
 
 (The same rules, with comments, are in [`firestore.rules`](firestore.rules).
 They let each player change only their own score, keep usernames unique,
